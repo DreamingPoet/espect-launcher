@@ -1,5 +1,5 @@
 <template>
-  <el-container class="layout-container-demo" style="height: 600px">
+  <el-container class="layout-container-demo" style="height: 580px">
     <!-- 侧边栏容器 -->
     <el-aside width="200px">
       <el-scrollbar>

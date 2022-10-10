@@ -8,7 +8,7 @@
       >
         <el-card :body-style="{ padding: '0px' }">
           <img
-            src="src/assets/vue.svg"
+            src="../../assets/vue.svg"
             class="image"
           />
           <div style="padding: 14px">
