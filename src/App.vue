@@ -53,6 +53,12 @@
         
         <!-- 内部容器 main-->
         <el-scrollbar>
+          <div class="card">
+            <input id="greet-input" v-model="name" placeholder="Enter a name..." />
+            <button type="button" @click="greet()">Greet</button>
+          </div>
+          <p>{{ greetMsg }}</p>
+
           <Cards />
           <el-table :data="tableData">
             <el-table-column prop="date" label="Date" width="140" />
@@ -73,6 +79,8 @@ import  Cards  from './components/cards/Cards.vue'
 import { ref } from 'vue'
 import { Menu as IconMenu, Message, Setting } from '@element-plus/icons-vue'
 
+import { invoke } from '@tauri-apps/api'
+
 const item = {
   date: '2022-10-10',
   name: 'Tom',
@@ -80,6 +88,15 @@ const item = {
 }
 
 const tableData = ref(Array.from({ length: 0 }).fill(item))
+
+const greetMsg = ref("");
+const name = ref("");
+
+async function greet() {
+  // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
+  greetMsg.value = await invoke("greet", { name: name.value });
+}
+
 </script>
 
 <style scoped>
