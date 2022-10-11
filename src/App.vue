@@ -80,6 +80,7 @@ import { ref } from 'vue'
 import { Menu as IconMenu, Message, Setting } from '@element-plus/icons-vue'
 
 import { invoke } from '@tauri-apps/api'
+import { listen, Event } from "@tauri-apps/api/event"
 
 const item = {
   date: '2022-10-10',
@@ -97,6 +98,10 @@ async function greet() {
   greetMsg.value = await invoke("greet", { name: name.value });
 }
 
+// 监听来自后端的事件
+listen("keep-alive", function(data: Event<any>) {
+  console.log(data.payload);
+});
 </script>
 
 <style scoped>
