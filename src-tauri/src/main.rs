@@ -3,10 +3,12 @@
     windows_subsystem = "windows"
 )]
 
-use std::time::Duration;
+use std::{time::Duration, sync::{Arc, RwLock}, collections::HashMap};
 
 use tauri::Manager;
 use tokio::time::sleep;
+
+use futures::{sink::SinkExt, stream::{StreamExt, SplitSink, SplitStream}};
 
 use axum::{
     extract::{
@@ -27,11 +29,18 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // use tokio::{net::TcpListener, io::{AsyncReadExt, AsyncWriteExt, BufReader, AsyncBufReadExt}, sync::broadcast};
 
+// 全局唯一的UUID (也可以放到 redis 中)
+static NEXT_USERID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+// WSClient
+type WSClient = Arc<RwLock<HashMap<usize, SplitSink<WebSocket, Message>>>>;
+
 #[tokio::main]
 async fn main() {
+    let clients = WSClient::default();
     tauri::Builder::default()
         .setup(|_app| {
-            tokio::spawn(start_axum());
+            tokio::spawn(start_axum(clients));
             Ok(())
         })
         // .setup(|app| {
@@ -56,7 +65,7 @@ fn greet(name: &str) -> String {
 }
 
 // init a background process on the command, and emit periodic events only to the window that used the command
-async fn start_axum() {
+async fn start_axum(clients: WSClient) {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG")
@@ -68,7 +77,8 @@ async fn start_axum() {
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
     // build our application with some routes
-    let app = Router::new()
+    let app = Router::new().with_state(clients)
+        // 添加静态文件路径为 webdist
         .nest(
             "",
             get_service(ServeDir::new("./webdist")).handle_error(|error: std::io::Error| async move {
@@ -118,8 +128,12 @@ async fn ws_handler(
 }
 
 async fn handle_socket(mut socket: WebSocket) {
+    let user_id = NEXT_USERID.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+    // By splitting we can send and receive at the same time.
+    let (mut sender, mut receiver) = socket.split();
+
     loop {
-        if let Some(msg) = socket.recv().await {
+        if let Some(msg) = receiver.next().await {
             if let Ok(msg) = msg {
                 match msg {
                     Message::Text(t) => {
