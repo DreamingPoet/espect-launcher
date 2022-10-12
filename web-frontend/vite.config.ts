@@ -8,5 +8,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3001,
     open: false, // open web browser ?
+  },
+  build: {
+    outDir: '../src-tauri/webdist' // packaged into rust::axum
   }
 })
