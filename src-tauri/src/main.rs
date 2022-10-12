@@ -71,7 +71,7 @@ async fn start_axum() {
     let app = Router::new()
         .nest(
             "",
-            get_service(ServeDir::new("../dist")).handle_error(|error: std::io::Error| async move {
+            get_service(ServeDir::new("./webdist")).handle_error(|error: std::io::Error| async move {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     format!("Unhandled internal error: {}", error),
@@ -149,6 +149,6 @@ async fn handle_socket(mut socket: WebSocket) {
 
 async fn http_handler() -> Html<&'static str> {
 
-    // Html(std::include_str!("../webdist/index.html"))
-    Html(std::include_str!("../../dist/frontend.html"))
+    Html(std::include_str!("../webdist/index.html"))
+    // Html(std::include_str!("../../dist/frontend.html"))
 }
