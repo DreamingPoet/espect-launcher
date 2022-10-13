@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 
-use futures::stream::{SplitSink, StreamExt};
+use futures::{stream::{SplitSink, StreamExt}, SinkExt};
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -98,7 +98,18 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
     loop {
         if let Some(op) = rx.recv().await {
             match op {
-                ClientOperation::Send { key, msg } => {}
+                ClientOperation::Send { key, msg } => {
+                    // let sender = data.get_mut(&key);
+                    // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
+
+                    if let Some(sender) = data.get_mut(&key) {
+                        if sender.send(Message::Text(msg)).await.is_err() {
+                            println!("send data failed!");
+                            // return;
+                        }
+                    }
+                    
+                }
                 ClientOperation::Add { key, client } => {
                     data.insert(key, client);
                 }
@@ -132,7 +143,16 @@ async fn printclients(tx: Sender<ClientOperation>) {
         }
         let res = resp_rx.await;
 
-        println!("data = {:?}", res);
+
+        // println!("data = {:?}", res);
+        
+        for i in res.unwrap().unwrap().iter() {
+            let id =  i.parse::<usize>().unwrap();
+            println!("client id = {}", id);
+            let op = ClientOperation::Send { key: id, msg: String::from("hello") };
+            tx.send(op);
+        }
+
     }
 }
 // init a background process on the command, and emit periodic events only to the window that used the command
