@@ -55,11 +55,18 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
-        "resizable": true,
+        "height": 300,
+        "resizable": false,
         "title": "espect-launcher-client",
-        "width": 800
+        "width": 400,
+        "maximized": false,
+        "decorations": false,
+        "center": true
       }
-    ]
+    ],
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    }
   }
 }
