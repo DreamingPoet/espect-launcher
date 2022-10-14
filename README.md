@@ -22,3 +22,8 @@ https://github.com/GeekQiaQia/vue3.0-template-admin
 
 stylus
 npm install stylus stylus-loader style-loader --save-dev
+
+
+axum 处理静态资源
+
+https://www.cnblogs.com/yjmyzz/p/axum_tutorial_5_static_file.html

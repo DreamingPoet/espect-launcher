@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-const socket = new WebSocket("ws://192.168.0.39:3000/ws");
+const socket = new WebSocket("ws://127.0.0.1:3000/ws");
 
 socket.onopen = function(e) {
   console.log("[open] Connection established");

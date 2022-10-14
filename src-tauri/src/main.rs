@@ -101,7 +101,7 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
                 ClientOperation::Send { key, msg } => {
                     // let sender = data.get_mut(&key);
                     // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
-
+                    println!("send data to client! ");
                     if let Some(sender) = data.get_mut(&key) {
                         if sender.send(Message::Text(msg)).await.is_err() {
                             println!("send data failed!");
@@ -150,7 +150,10 @@ async fn printclients(tx: Sender<ClientOperation>) {
             let id =  i.parse::<usize>().unwrap();
             println!("client id = {}", id);
             let op = ClientOperation::Send { key: id, msg: String::from("hello") };
-            tx.send(op);
+            if tx.send(op).await.is_err() {
+                println!("send data failed!");
+                // return;
+            }
         }
 
     }
