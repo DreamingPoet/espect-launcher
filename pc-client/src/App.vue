@@ -13,10 +13,15 @@ const socket_onopen = function(e) {
 
 const socket_onmessage = function(event) {
   console.log(`[message] Data received from server: ${event.data}`);
-  socket.send('hello');
   if (event.data == "file_changed") {
     window.location.reload();
+  } else if (event.data == "get_client_data") {
+    get_local_data();
+
+  } else if (event.data == "xxx") {
+
   }
+
 };
 
 const socket_onclose = function(event) {
@@ -40,6 +45,10 @@ const data = reactive({
   state: "waiting ..."
 
 });
+
+
+
+// ============================================= to tauri =============================================
 const sayhello = function () {
   socket.send('hello');
 };
@@ -54,6 +63,18 @@ const get_saved_host = () => {
     }
   );
 };
+
+// 获取 本地数据 机器参数 + apps
+const get_local_data = () => {
+  invoke("get_local_data").then(
+    (data) => {
+      socket.send(data);
+    }
+  );
+};
+
+
+// ============================================= to tauri =============================================
 
 
 
