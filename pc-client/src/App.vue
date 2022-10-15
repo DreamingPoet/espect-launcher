@@ -2,15 +2,18 @@
 import { appWindow } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, reactive } from 'vue'
 import { invoke } from "@tauri-apps/api";
+import { SemiSelect,CloseBold  } from '@element-plus/icons-vue'
 
 let socket = null;
 
+// webSocket连接成功
 const socket_onopen = function(e) {
   data.connected = true;
   console.log("[open] Connection established");
-  socket.send("start_connection");
+  get_local_data();
 };
 
+// 收到消息
 const socket_onmessage = function(event) {
   console.log(`[message] Data received from server: ${event.data}`);
   if (event.data == "file_changed") {
@@ -24,6 +27,7 @@ const socket_onmessage = function(event) {
 
 };
 
+// webSocket关闭
 const socket_onclose = function(event) {
   data.connected = false;
   if (event.wasClean) {
@@ -33,11 +37,13 @@ const socket_onclose = function(event) {
   }
 };
 
+// webSocket 错误
 const socket_onerror = function(error) {
   data.connected = false;
   console.log(error);
 };
 
+// ======== data start ========
 const data = reactive({
   host: '',
   connected: false,
@@ -45,10 +51,10 @@ const data = reactive({
   state: "waiting ..."
 
 });
+// ======== data end ========
 
 
-
-// ============================================= to tauri =============================================
+// ======== to tauri start ========
 const sayhello = function () {
   socket.send('hello');
 };
@@ -66,6 +72,7 @@ const get_saved_host = () => {
 
 // 获取 本地数据 机器参数 + apps
 const get_local_data = () => {
+  // 从后台获取数据
   invoke("get_local_data").then(
     (data) => {
       socket.send(data);
@@ -74,7 +81,8 @@ const get_local_data = () => {
 };
 
 
-// ============================================= to tauri =============================================
+
+// ======== to tauri end ========
 
 
 
@@ -106,6 +114,7 @@ onMounted(() => {
       console.log(data.state);
     }else{
       data.state = "connected to " + data.host + "!";
+      socket.send("tick");
       console.log(data.state);
     }
   }, 5000);
@@ -133,13 +142,14 @@ const close = () => {
 </script>
 
 <template>
-
+  
   <div data-tauri-drag-region class="titlebar">
     <div @click="minimize()" class="titlebar-button" id="titlebar-minimize">
-      <img src="https://api.iconify.design/mdi:window-minimize.svg" alt="minimize" />
+      <el-icon><SemiSelect /></el-icon>
+
     </div>
-    <div @click="close()" class="titlebar-button" id="titlebar-close">
-      <img src="https://api.iconify.design/mdi:close.svg" alt="close" />
+    <div @click="close()" class="titlebar-button-close" id="titlebar-close">
+      <el-icon><CloseBold /></el-icon>
     </div>
   </div>
 
@@ -164,7 +174,7 @@ const close = () => {
   right: 0;
 }
 
-.titlebar-button {
+.titlebar-button, .titlebar-button-close {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -175,6 +185,10 @@ const close = () => {
 .titlebar-button:hover {
   background: #c4c4c4;
 }
+.titlebar-button-close:hover {
+  background: #e03a3a;
+}
+
 
 .window-main {
   margin-top: 30px;

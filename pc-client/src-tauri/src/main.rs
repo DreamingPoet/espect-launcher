@@ -3,25 +3,29 @@
     windows_subsystem = "windows"
 )]
 
-mod savefile;
-
-use tauri::{Manager, SystemTray, SystemTrayEvent, Window};
-
-use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem};
+mod client_data;
+use client_data::ClientFunc;
+use tauri::{CustomMenuItem, SystemTrayMenu};
+use tauri::{Manager, SystemTray, SystemTrayEvent};
 
 fn main() {
     // Create the SystemTrayMenu:
     // here `"quit".to_string()` defines the menu item id, and the second parameter is the menu item label.
     let quit = CustomMenuItem::new("quit".to_string(), "退出");
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(quit);
+    let tray_menu = SystemTrayMenu::new().add_item(quit);
 
     // Initialize a new tray instance
     // Add the tray menu to the SystemTray instance:
     let system_tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_saved_host])
+        // 注册调用的事件
+        .invoke_handler(tauri::generate_handler![
+            get_saved_host,
+            get_local_data,
+            regist_client,
+
+        ])
         .system_tray(system_tray)
         .on_system_tray_event(|app, event| match event {
             SystemTrayEvent::LeftClick {
@@ -67,8 +71,25 @@ fn main() {
         });
 }
 
-
 #[tauri::command]
 fn get_saved_host() -> String {
     String::from("127.0.0.1:3000")
+}
+
+#[tauri::command]
+fn get_local_data() -> String {
+    let func = ClientFunc {
+        func_name: "on_get_client_data".to_string(),
+        data: client_data::get_local_data(),
+    };
+    serde_json::to_string_pretty(&func).unwrap()
+}
+
+#[tauri::command]
+fn regist_client() -> String {
+    let func = ClientFunc {
+        func_name: "regist_client".to_string(),
+        data: client_data::get_local_data(),
+    };
+    serde_json::to_string_pretty(&func).unwrap()
 }

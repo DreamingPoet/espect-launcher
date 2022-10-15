@@ -3,12 +3,17 @@
     windows_subsystem = "windows"
 )]
 
+mod client_data;
+
 use std::{
     collections::{HashMap, HashSet},
     time::Duration,
 };
 
-use futures::{stream::{SplitSink, StreamExt}, SinkExt};
+use futures::{
+    stream::{SplitSink, StreamExt},
+    SinkExt,
+};
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -34,18 +39,24 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::client_data::ClientData;
+use crate::client_data::ClientFunc;
+
 //  对客户端的所有的操作
 enum ClientOperation {
     Send {
         key: usize,
         msg: String,
     },
+    Get {
+        resp: Responder<Option<HashSet<String>>>,
+    },
     Add {
         key: usize,
         client: SplitSink<WebSocket, Message>,
     },
-    Get {
-        resp: Responder<Option<HashSet<String>>>,
+    Remove {
+        key: usize,
     },
 }
 
@@ -60,7 +71,7 @@ type ClientMap = HashMap<usize, SplitSink<WebSocket, Message>>;
 #[tokio::main]
 async fn main() {
     // 创建一个客户端的集合数据
-    
+
     let (tx, rx) = mpsc::channel(32);
     let tx2 = tx.clone();
 
@@ -108,7 +119,6 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
                             // return;
                         }
                     }
-                    
                 }
                 ClientOperation::Add { key, client } => {
                     data.insert(key, client);
@@ -119,6 +129,9 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
                         res.insert(i.0.to_string());
                     }
                     let _ = resp.send(Some(res));
+                }
+                ClientOperation::Remove {  key } => {
+                    data.remove(&key);
                 }
             }
         } else {
@@ -143,19 +156,20 @@ async fn printclients(tx: Sender<ClientOperation>) {
         }
         let res = resp_rx.await;
 
-
         // println!("data = {:?}", res);
-        
+
         for i in res.unwrap().unwrap().iter() {
-            let id =  i.parse::<usize>().unwrap();
+            let id = i.parse::<usize>().unwrap();
             println!("client id = {}", id);
-            let op = ClientOperation::Send { key: id, msg: String::from("hello") };
+            let op = ClientOperation::Send {
+                key: id,
+                msg: String::from("hello"),
+            };
             if tx.send(op).await.is_err() {
                 println!("send data failed!");
                 // return;
             }
         }
-
     }
 }
 // init a background process on the command, and emit periodic events only to the window that used the command
@@ -245,26 +259,61 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>) {
             if let Ok(msg) = msg {
                 match msg {
                     Message::Text(t) => {
-                        println!("client sent str: {:?}", t);
+                        println!("on get client str: {:?}", t);
+
+                        // 接收到 Json 字符串
+                        if let Ok(client_func) = serde_json::from_str::<ClientFunc>(&t) {
+                            // 匹配函数名称
+                            match &client_func.func_name as &str {
+                                // 注册客户端
+                                "regist_client" => {}
+                                // 获取客户端本地数据
+                                "on_get_client_data" => {
+                                    let client_data: ClientData =
+                                        serde_json::from_str(&client_func.data).unwrap();
+                                    println!("user_id = {}", client_data.ip);
+                                    let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
+
+                                    // println!("user_id = {}", user_id);
+
+                                    // let op = ClientOperation::Add {
+                                    //     key: user_id,
+                                    //     client: sender,
+                                    // };
+
+                                    // println!("start add data");
+                                    // if tx.send(op).await.is_err() {
+                                    //     println!("add data failed!");
+                                    // }
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            println!("not a function!")
+                        }
                     }
-                    Message::Binary(_) => {
-                        println!("client sent binary data");
-                    }
-                    Message::Ping(_) => {
-                        println!("socket ping");
-                    }
-                    Message::Pong(_) => {
-                        println!("socket pong");
-                    }
-                    Message::Close(_) => {
-                        println!("client disconnected");
-                        return;
-                    }
+                    _ => {}
                 }
             } else {
-                println!("client disconnected");
+                println!("client disconnected id = {}", &user_id );
+                
+                let op = ClientOperation::Remove { key: user_id };
+                if tx.send(op).await.is_err() {
+                    println!("add data failed!");
+                }
+
                 return;
             }
+        } else {
+
+            println!("client disconnected id = {}", &user_id );
+                
+            let op = ClientOperation::Remove { key: user_id };
+            if tx.send(op).await.is_err() {
+                println!("add data failed!");
+            }
+
+            return;   
         }
     }
 }
