@@ -21,8 +21,8 @@ const socket_onmessage = function (event:any) {
   } else if (event.data == "get_client_data") {
     get_local_data();
 
-  } else if (event.data == "xxx") {
-
+  } else {
+    // console.log(event.data)
   }
 
 };
@@ -57,7 +57,7 @@ const data = reactive({
 // ======== to tauri start ========
 const sayhello = function () {
   // socket.send('hello');
-  // get_local_data();
+  get_local_data();
 };
 
 // 获取保存的host
@@ -122,7 +122,7 @@ onMounted(() => {
     } else {
       data.state = "connected to " + data.host + "!";
       socket.send("tick");
-      console.log(data.state);
+      // console.log(data.state);
     }
   }, 5000);
 

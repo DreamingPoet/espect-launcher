@@ -14,6 +14,7 @@ use futures::{
     stream::{SplitSink, StreamExt},
     SinkExt,
 };
+use tauri::{App, AppHandle, Manager};
 use tokio::{
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -74,14 +75,15 @@ async fn main() {
 
     let (tx, rx) = mpsc::channel(32);
     let tx2 = tx.clone();
+    let tx3 = tx.clone();
 
     tauri::Builder::default()
-        .setup(|_app| {
+        .setup(|app| {
+            let app_launcher = app.app_handle();
             tokio::spawn(handle_data_channel(rx));
             tokio::spawn(printclients(tx2));
-            tokio::spawn(start_axum(tx));
+            tokio::spawn(start_axum(tx, app_launcher));
 
-            //     let app_launcher = app.app_handle();
             //     tauri::async_runtime::spawn(async move {
             //         loop {
             //             sleep(Duration::from_millis(1000)).await;
@@ -92,7 +94,8 @@ async fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .manage(tx3)
+        .invoke_handler(tauri::generate_handler![greet, start_app])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -100,6 +103,47 @@ async fn main() {
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}!", name)
+}
+
+// #[tauri::command]
+// async fn start_app(index:i32, app:String, tx: tauri::State<'_, Sender<ClientOperation>>) -> Result<String>{
+//     let op = ClientOperation::Send { key: index as usize, msg: app };
+
+//     println!("start get data");
+//     if tx.send(op).await.is_err() {
+//         println!("get data failed!");
+//         Err("err")
+//     }else {
+//         Ok("ok".to_string())
+//     }
+// }
+
+#[derive(serde::Serialize)]
+struct CustomResponse {
+    message: String,
+    other_val: usize,
+}
+
+#[tauri::command]
+async fn start_app(
+    index: i32,
+    app: String,
+    tx: tauri::State<'_, Sender<ClientOperation>>,
+) -> Result<CustomResponse, String> {
+    let op = ClientOperation::Send {
+        key: index as usize,
+        msg: app,
+    };
+    println!("start get data");
+    if tx.send(op).await.is_err() {
+        println!("get data failed!");
+        Err("No result".into())
+    } else {
+        Ok(CustomResponse {
+            message: "".to_string(),
+            other_val: 0,
+        })
+    }
 }
 
 // 处理数据
@@ -130,7 +174,7 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
                     }
                     let _ = resp.send(Some(res));
                 }
-                ClientOperation::Remove {  key } => {
+                ClientOperation::Remove { key } => {
                     data.remove(&key);
                 }
             }
@@ -173,7 +217,7 @@ async fn printclients(tx: Sender<ClientOperation>) {
     }
 }
 // init a background process on the command, and emit periodic events only to the window that used the command
-async fn start_axum(tx: Sender<ClientOperation>) {
+async fn start_axum(tx: Sender<ClientOperation>, app_launcher: AppHandle) {
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG")
@@ -185,7 +229,7 @@ async fn start_axum(tx: Sender<ClientOperation>) {
     let assets_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
 
     // build our application with some routes
-    let app = Router::with_state(tx)
+    let app = Router::with_state((tx, app_launcher))
         // 添加静态文件路径为 webdist
         .nest(
             "",
@@ -228,16 +272,16 @@ async fn start_axum(tx: Sender<ClientOperation>) {
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(tx): State<Sender<ClientOperation>>,
+    State((tx, app_handle)): State<(Sender<ClientOperation>, AppHandle)>,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
 ) -> impl IntoResponse {
     if let Some(TypedHeader(user_agent)) = user_agent {
         println!("`{}` connected", user_agent.as_str());
     }
-    ws.on_upgrade(|socket| handle_socket(socket, tx))
+    ws.on_upgrade(|socket| handle_socket(socket, tx, app_handle))
 }
 
-async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>) {
+async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handle: AppHandle) {
     let user_id = NEXT_USERID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // By splitting we can send and receive at the same time.
     let (sender, mut receiver) = socket.split();
@@ -269,22 +313,17 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>) {
                                 "regist_client" => {}
                                 // 获取客户端本地数据
                                 "on_get_client_data" => {
-                                    let client_data: ClientData =
+                                    // 解成Json , 设置 id 再转回 string
+                                    let mut client_data: ClientData =
                                         serde_json::from_str(&client_func.data).unwrap();
-                                    println!("user_id = {}", client_data.ip);
-                                    let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
-
-                                    // println!("user_id = {}", user_id);
-
-                                    // let op = ClientOperation::Add {
-                                    //     key: user_id,
-                                    //     client: sender,
-                                    // };
-
-                                    // println!("start add data");
-                                    // if tx.send(op).await.is_err() {
-                                    //     println!("add data failed!");
-                                    // }
+                                    client_data.id = user_id as i32;
+                                    // println!("user_id = {}", client_data.ip);
+                                    // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
+                                    let client_str =
+                                        serde_json::to_string_pretty(&client_data).unwrap();
+                                    app_handle
+                                        .emit_all("on_get_client_data", &client_str)
+                                        .unwrap();
                                 }
                                 _ => {}
                             }
@@ -295,8 +334,8 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>) {
                     _ => {}
                 }
             } else {
-                println!("client disconnected id = {}", &user_id );
-                
+                println!("client disconnected id = {}", &user_id);
+
                 let op = ClientOperation::Remove { key: user_id };
                 if tx.send(op).await.is_err() {
                     println!("add data failed!");
@@ -305,15 +344,14 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>) {
                 return;
             }
         } else {
+            println!("client disconnected id = {}", &user_id);
 
-            println!("client disconnected id = {}", &user_id );
-                
             let op = ClientOperation::Remove { key: user_id };
             if tx.send(op).await.is_err() {
                 println!("add data failed!");
             }
 
-            return;   
+            return;
         }
     }
 }

@@ -8,6 +8,7 @@ pub struct ClientFunc {
 
 #[derive(Serialize,Deserialize)]
 pub struct ClientData {
+    pub id: i32,
     pub name: String,
     pub ip: String,
     pub b_admin: bool,
@@ -42,6 +43,7 @@ pub fn get_local_data() -> String {
     ];
 
     let data = ClientData {
+        id: -1,
         name: "背包1".to_string(),
         ip: "127.0.0.1".to_string(),
         b_admin: false,
