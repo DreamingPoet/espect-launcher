@@ -2,19 +2,19 @@
 import { appWindow } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, reactive } from 'vue'
 import { invoke } from "@tauri-apps/api";
-import { SemiSelect,CloseBold  } from '@element-plus/icons-vue'
+import { SemiSelect, CloseBold, FolderOpened } from '@element-plus/icons-vue'
 
 let socket = null;
 
 // webSocket连接成功
-const socket_onopen = function(e) {
+const socket_onopen = function (e) {
   data.connected = true;
   console.log("[open] Connection established");
   get_local_data();
 };
 
 // 收到消息
-const socket_onmessage = function(event) {
+const socket_onmessage = function (event) {
   console.log(`[message] Data received from server: ${event.data}`);
   if (event.data == "file_changed") {
     window.location.reload();
@@ -28,7 +28,7 @@ const socket_onmessage = function(event) {
 };
 
 // webSocket关闭
-const socket_onclose = function(event) {
+const socket_onclose = function (event) {
   data.connected = false;
   if (event.wasClean) {
     console.log(`[close] Connection closed, code=${event.code} reason=${event.reason}`);
@@ -38,7 +38,7 @@ const socket_onclose = function(event) {
 };
 
 // webSocket 错误
-const socket_onerror = function(error) {
+const socket_onerror = function (error) {
   data.connected = false;
   console.log(error);
 };
@@ -80,7 +80,14 @@ const get_local_data = () => {
   );
 };
 
-
+// 打开本地 app 目录
+const open_app_folder = () => {
+  // 从后台获取数据
+  invoke("open_app_folder").then(
+    (data) => {
+    }
+  );
+};
 
 // ======== to tauri end ========
 
@@ -93,15 +100,15 @@ const clear = () => {
 };
 
 const connect_websocket = () => {
-      // 连接到websocket服务器
-      if (socket != null) {
-        socket.close()     
-      }
-      socket = new WebSocket("ws://" + data.host + "/ws");
-      socket.onopen = socket_onopen;
-      socket.onmessage = socket_onmessage;
-      socket.onclose = socket_onclose;
-      socket.onerror = socket_onerror;
+  // 连接到websocket服务器
+  if (socket != null) {
+    socket.close()
+  }
+  socket = new WebSocket("ws://" + data.host + "/ws");
+  socket.onopen = socket_onopen;
+  socket.onmessage = socket_onmessage;
+  socket.onclose = socket_onclose;
+  socket.onerror = socket_onerror;
 }
 
 onMounted(() => {
@@ -112,14 +119,14 @@ onMounted(() => {
       connect_websocket();
       data.state = "try connecting to " + data.host + " ...";
       console.log(data.state);
-    }else{
+    } else {
       data.state = "connected to " + data.host + "!";
       socket.send("tick");
       console.log(data.state);
     }
   }, 5000);
 
-  
+
 });
 
 onUnmounted(() => {
@@ -142,22 +149,39 @@ const close = () => {
 </script>
 
 <template>
-  
+
   <div data-tauri-drag-region class="titlebar">
     <div @click="minimize()" class="titlebar-button" id="titlebar-minimize">
-      <el-icon><SemiSelect /></el-icon>
+      <el-icon>
+        <SemiSelect />
+      </el-icon>
 
     </div>
     <div @click="close()" class="titlebar-button-close" id="titlebar-close">
-      <el-icon><CloseBold /></el-icon>
+      <el-icon>
+        <CloseBold />
+      </el-icon>
     </div>
   </div>
 
   <div class="window-main">
-    <el-input v-model="data.host" placeholder="Please input" />
-    <el-button type="primary" @click="sayhello">Send hello </el-button>
-    <el-button type="primary" @click="get_saved_host">get saved host</el-button>
-    <h5>{{data.state}}</h5>
+    <el-row :gutter="24">
+      <el-col :span="12" :offset="3">
+        <el-input v-model="data.host" placeholder="Please input" />
+      </el-col>
+      <el-col :span="6">
+        <el-button type="primary" @click="sayhello" plain>重连</el-button>
+      </el-col>
+    </el-row>
+
+    <div style="text-align:center; margin-top: 10px;">
+      <h5>{{data.state}}</h5>
+    </div>
+
+    <div style="text-align:center; margin-top: 30px;">
+      <el-button type="primary" @click="open_app_folder" plain :icon="FolderOpened" >打开目录</el-button>
+    </div>
+
   </div>
 </template>
 
@@ -174,7 +198,8 @@ const close = () => {
   right: 0;
 }
 
-.titlebar-button, .titlebar-button-close {
+.titlebar-button,
+.titlebar-button-close {
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -185,12 +210,13 @@ const close = () => {
 .titlebar-button:hover {
   background: #c4c4c4;
 }
+
 .titlebar-button-close:hover {
   background: #e03a3a;
 }
 
 
 .window-main {
-  margin-top: 30px;
+  margin-top: 80px;
 }
 </style>
