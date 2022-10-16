@@ -4,17 +4,17 @@ import { onMounted, onUnmounted, reactive } from 'vue'
 import { invoke } from "@tauri-apps/api";
 import { SemiSelect, CloseBold, FolderOpened } from '@element-plus/icons-vue'
 
-let socket = null;
+let socket:any;
 
 // webSocket连接成功
-const socket_onopen = function (e) {
+const socket_onopen = function (e:any) {
   data.connected = true;
   console.log("[open] Connection established");
   get_local_data();
 };
 
 // 收到消息
-const socket_onmessage = function (event) {
+const socket_onmessage = function (event:any) {
   console.log(`[message] Data received from server: ${event.data}`);
   if (event.data == "file_changed") {
     window.location.reload();
@@ -28,7 +28,7 @@ const socket_onmessage = function (event) {
 };
 
 // webSocket关闭
-const socket_onclose = function (event) {
+const socket_onclose = function (event:any) {
   data.connected = false;
   if (event.wasClean) {
     console.log(`[close] Connection closed, code=${event.code} reason=${event.reason}`);
@@ -38,7 +38,7 @@ const socket_onclose = function (event) {
 };
 
 // webSocket 错误
-const socket_onerror = function (error) {
+const socket_onerror = function (error:any) {
   data.connected = false;
   console.log(error);
 };
@@ -47,7 +47,7 @@ const socket_onerror = function (error) {
 const data = reactive({
   host: '',
   connected: false,
-  checkTimer: null,
+  checkTimer: 1,
   state: "waiting ..."
 
 });
@@ -62,9 +62,8 @@ const sayhello = function () {
 // 获取保存的host
 const get_saved_host = () => {
   invoke("get_saved_host").then(
-    // (username) => (data.username = username)
     (host) => {
-      data.host = host;
+      data.host = host as string;
       connect_websocket();
     }
   );
@@ -114,7 +113,7 @@ const connect_websocket = () => {
 onMounted(() => {
 
   get_saved_host();
-  data.playTimer = setInterval(() => {
+  data.checkTimer = setInterval(() => {
     if (!data.connected) {
       connect_websocket();
       data.state = "try connecting to " + data.host + " ...";

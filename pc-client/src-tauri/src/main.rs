@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod savefile;
 mod client_data;
 use client_data::ClientFunc;
 use tauri::{CustomMenuItem, SystemTrayMenu};
@@ -73,7 +74,11 @@ fn main() {
 
 #[tauri::command]
 fn get_saved_host() -> String {
-    String::from("127.0.0.1:3000")
+    let config = savefile::SaveFile::new("./myconfig.yml");
+    let s = config.get_host();
+    println!("config = {}", s);
+    s
+    // String::from("127.0.0.1:3000")
 }
 
 #[tauri::command]
