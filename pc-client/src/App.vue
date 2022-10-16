@@ -57,6 +57,7 @@ const data = reactive({
 // ======== to tauri start ========
 const sayhello = function () {
   // socket.send('hello');
+  // get_local_data();
 };
 
 // 获取保存的host

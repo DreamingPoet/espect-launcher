@@ -1,3 +1,5 @@
+use std::env;
+
 use serde::{Serialize,Deserialize};
 
 #[derive(Serialize,Deserialize)]
@@ -31,15 +33,40 @@ pub struct ClientApp {
 
 
 pub fn get_local_data() -> String {
+    
+    let path = env::current_dir().unwrap().join("apps");
+
+    let mut apps = vec![];
+
+    println!("current_dir = {:?}", path);
+    let dir = path.as_path().read_dir().unwrap();
+    for x in dir {
+    if let Ok(path) = x {
+        // println!("{:?}", path.path()); // 该路径下所有文件和文件夹名称
+        let sub_path = path.path().read_dir().unwrap();
+        for j in sub_path {
+            if let Ok(jj) = j {
+                if jj.path().is_file() && jj.path().to_str().unwrap().contains(".exe") {
+                    println!("{:?}", jj.path()); // 该路径下所有文件和文件夹名称
+                    let name = jj.path().to_str().unwrap().to_owned();
+                    apps.push(ClientApp { name: name, dscrpt: "".to_string(), icon: "".to_string() });
+                }
+
+            }
+        }
+        // if path.path()
+        // 是否存在某个文件
+        // path.file_name()
+
+        }
+    }
+
+
     let ops = vec![
         ClientOperation { name: "Start SteamVR".to_string(), dscrpt: "".to_string() },
         ClientOperation { name: "Power Down".to_string(), dscrpt: "".to_string() },
     ];
 
-    let apps = vec![
-        ClientApp { name: "导游培训".to_string(), dscrpt: "".to_string(), icon: "".to_string() },
-        ClientApp { name: "试听实验".to_string(), dscrpt: "".to_string(), icon: "".to_string() },
-    ];
 
     let data = ClientData {
         name: "背包1".to_string(),
@@ -50,3 +77,5 @@ pub fn get_local_data() -> String {
     };
     serde_json::to_string_pretty(&data).unwrap()
 }
+
+

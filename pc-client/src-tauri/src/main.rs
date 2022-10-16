@@ -119,14 +119,4 @@ fn open_app_folder() {
 }
 
 
-// let dir = path.as_path().read_dir().unwrap();
-// for x in dir {
-//    if let Ok(path) = x {
-//        println!("{:?}", path.file_name()); // 该路径下所有文件和文件夹名称
-//        // 是否存在某个文件
-//        if path.file_name().eq("Cargo.toml") {
-//             println!("存在 [`Cargo.toml`] 文件!");
-//        }
-//     }
-// }
 
