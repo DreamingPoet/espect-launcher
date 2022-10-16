@@ -5,6 +5,10 @@
 
 mod savefile;
 mod client_data;
+use std::{fs, env};
+use std::path::Path;
+use std::process::Command;
+
 use client_data::ClientFunc;
 use tauri::{CustomMenuItem, SystemTrayMenu};
 use tauri::{Manager, SystemTray, SystemTrayEvent};
@@ -24,7 +28,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_saved_host,
             get_local_data,
-            regist_client,
+            open_app_folder,
 
         ])
         .system_tray(system_tray)
@@ -91,10 +95,38 @@ fn get_local_data() -> String {
 }
 
 #[tauri::command]
-fn regist_client() -> String {
-    let func = ClientFunc {
-        func_name: "regist_client".to_string(),
-        data: client_data::get_local_data(),
-    };
-    serde_json::to_string_pretty(&func).unwrap()
+fn open_app_folder() {
+    // let o = Path::new("a.rs");
+    // let b = o.is_file();
+    let path = env::current_dir().unwrap();
+
+    let path = path.as_path();
+    let path = path.to_str().unwrap().to_owned();
+    let path = path + "\\apps";
+    println!("current path  = {:?}", &path);
+
+    if !Path::new("./apps").exists() {
+        // 创建一个目录
+        fs::create_dir("./apps").unwrap();
+    }
+
+    println!( "Opening" );
+    Command::new( "explorer" )
+        .arg( path ) // <- Specify the directory you'd like to open.
+        .spawn( )
+        .unwrap( );
+
 }
+
+
+// let dir = path.as_path().read_dir().unwrap();
+// for x in dir {
+//    if let Ok(path) = x {
+//        println!("{:?}", path.file_name()); // 该路径下所有文件和文件夹名称
+//        // 是否存在某个文件
+//        if path.file_name().eq("Cargo.toml") {
+//             println!("存在 [`Cargo.toml`] 文件!");
+//        }
+//     }
+// }
+
