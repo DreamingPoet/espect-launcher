@@ -12,6 +12,7 @@ use std::{env, fs};
 use client_data::ClientFunc;
 use tauri::{CustomMenuItem, SystemTrayMenu};
 use tauri::{Manager, SystemTray, SystemTrayEvent};
+use sysinfo::{ProcessExt, System, SystemExt};
 
 fn main() {
     // Create the SystemTrayMenu:
@@ -120,7 +121,17 @@ fn open_app_folder() {
 #[tauri::command]
 fn start_app(app: String) {
     println!("start_app  = {:?}", app);
-    Command::new(app)
+
+    let s = System::new_all();
+    let path = Path::new(&app);
+    println!("start_app_exe  = {:?}", path.file_name());
+
+    for process in s.processes_by_exact_name(path.file_name().unwrap().to_str().unwrap()) {
+        println!("{} {}", process.pid(), process.name());
+        return;
+    }
+    
+    Command::new(&app)
     .spawn()
     .unwrap();
 
