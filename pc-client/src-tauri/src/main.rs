@@ -3,11 +3,11 @@
     windows_subsystem = "windows"
 )]
 
-mod savefile;
 mod client_data;
-use std::{fs, env};
+mod savefile;
 use std::path::Path;
 use std::process::Command;
+use std::{env, fs};
 
 use client_data::ClientFunc;
 use tauri::{CustomMenuItem, SystemTrayMenu};
@@ -29,7 +29,7 @@ fn main() {
             get_saved_host,
             get_local_data,
             open_app_folder,
-
+            start_app,
         ])
         .system_tray(system_tray)
         .on_system_tray_event(|app, event| match event {
@@ -110,13 +110,18 @@ fn open_app_folder() {
         fs::create_dir("./apps").unwrap();
     }
 
-    println!( "Opening" );
-    Command::new( "explorer" )
-        .arg( path ) // <- Specify the directory you'd like to open.
-        .spawn( )
-        .unwrap( );
-
+    println!("Opening");
+    Command::new("explorer")
+        .arg(path) // <- Specify the directory you'd like to open.
+        .spawn()
+        .unwrap();
 }
 
+#[tauri::command]
+fn start_app(app: String) {
+    println!("start_app  = {:?}", app);
+    Command::new(app)
+    .spawn()
+    .unwrap();
 
-
+}

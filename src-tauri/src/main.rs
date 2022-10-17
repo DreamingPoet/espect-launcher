@@ -105,19 +105,6 @@ fn greet(name: &str) -> String {
     format!("Hello, {}!", name)
 }
 
-// #[tauri::command]
-// async fn start_app(index:i32, app:String, tx: tauri::State<'_, Sender<ClientOperation>>) -> Result<String>{
-//     let op = ClientOperation::Send { key: index as usize, msg: app };
-
-//     println!("start get data");
-//     if tx.send(op).await.is_err() {
-//         println!("get data failed!");
-//         Err("err")
-//     }else {
-//         Ok("ok".to_string())
-//     }
-// }
-
 #[derive(serde::Serialize)]
 struct CustomResponse {
     message: String,
@@ -130,9 +117,13 @@ async fn start_app(
     app: String,
     tx: tauri::State<'_, Sender<ClientOperation>>,
 ) -> Result<CustomResponse, String> {
+
+    let client_func = ClientFunc{ func_name: "start_app".to_string(), data: app };
+    let client_func = serde_json::to_string(&client_func).unwrap();
+
     let op = ClientOperation::Send {
         key: index as usize,
-        msg: app,
+        msg: client_func,
     };
     println!("start get data");
     if tx.send(op).await.is_err() {
@@ -218,6 +209,7 @@ async fn printclients(tx: Sender<ClientOperation>) {
 }
 // init a background process on the command, and emit periodic events only to the window that used the command
 async fn start_axum(tx: Sender<ClientOperation>, app_launcher: AppHandle) {
+    sleep(Duration::from_millis(5000)).await;
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG")

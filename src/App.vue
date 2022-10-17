@@ -56,7 +56,7 @@
         <el-scrollbar>
 
           <el-row>
-            <el-col v-for="(item, index) in data.current_client.apps" :key="item" :span="6" :offset="1">
+            <el-col v-for="(item, index) in data.current_client.apps" :span="6" :offset="1">
               <el-card :body-style="{ padding: '0px' }">
                 <img src="./assets/vue.svg" class="image" />
                 <div style="padding: 14px">
@@ -106,8 +106,9 @@ listen("keep-alive", function (data: Event<any>) {
 });
 
 // 获取来自客户端的数据之后, 更新 UI
-listen("on_get_client_data", function (data: Event<any>) {
-  console.log(data.payload);
+listen("on_get_client_data", function (client_data: Event<any>) {
+  console.log(client_data.payload);
+  data.clients.push(eval("(" + client_data.payload + ")"));
 });
 
 // ======== from tauri end =========
@@ -186,8 +187,8 @@ const test = [
 
 
 const data = reactive({
-  clients: test,
-  current_client: {},
+  clients: [{id:"", apps:[]}],
+  current_client:{id:"", apps:[{dscrpt:"",name:""}]},
 
 });
 // ======== data end ========
@@ -196,8 +197,11 @@ const data = reactive({
 // ======== web func start ========
 
 const call_option = function (index: number) {
-
+  console.log("call index = " + index)
   data.current_client = data.clients[index];
+
+  console.log(data.current_client.apps)
+
 
 };
 

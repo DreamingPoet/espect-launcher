@@ -13,14 +13,18 @@ const socket_onopen = function (e:any) {
   get_local_data();
 };
 
-// 收到消息
+// 收到消息, 只接收 ClientFunc 类型的数据
 const socket_onmessage = function (event:any) {
   console.log(`[message] Data received from server: ${event.data}`);
-  if (event.data == "file_changed") {
-    window.location.reload();
-  } else if (event.data == "get_client_data") {
+  let client_data = eval("(" + event.data + ")");
+
+ if (event.data == "get_client_data") {
     get_local_data();
 
+  } else if (client_data.func_name == "start_app") {
+    console.log(client_data.data)
+    
+    start_app(client_data.data);
   } else {
     // console.log(event.data)
   }
@@ -88,6 +92,16 @@ const open_app_folder = () => {
     }
   );
 };
+
+// 启动本地 app 目录
+const start_app = (app:string) => {
+  // 从后台获取数据
+  invoke("start_app", { app: app }).then(
+    (data) => {
+    }
+  );
+};
+
 
 // ======== to tauri end ========
 

@@ -48,17 +48,13 @@ pub fn get_local_data() -> String {
         for j in sub_path {
             if let Ok(jj) = j {
                 if jj.path().is_file() && jj.path().to_str().unwrap().contains(".exe") {
-                    println!("{:?}", jj.path()); // 该路径下所有文件和文件夹名称
+                    println!("{:?}", jj.path().file_stem().unwrap().to_str()); // 该路径下所有文件和文件夹名称
                     let name = jj.path().to_str().unwrap().to_owned();
-                    apps.push(ClientApp { name: name, dscrpt: "".to_string(), icon: "".to_string() });
+                    apps.push(ClientApp { name: name, dscrpt: jj.path().file_stem().unwrap().to_str().unwrap().to_owned(), icon: "".to_string() });
                 }
 
             }
         }
-        // if path.path()
-        // 是否存在某个文件
-        // path.file_name()
-
         }
     }
 
