@@ -3,27 +3,17 @@
     <el-container class="layout-container-demo" style="height: 580px">
       <el-header>
 
-
       </el-header>
 
       <el-container>
         <el-aside width="200px">
-
           <el-scrollbar>
-
             <el-menu>
-
               <el-menu-item index="1-1" v-for="[key, value] in data.clients" @click="call_option(key)">Option {{
               value.id }}</el-menu-item>
-
             </el-menu>
-
           </el-scrollbar>
-
-
-
         </el-aside>
-
 
         <el-main>
 
@@ -36,21 +26,15 @@
                   <img src="./assets/vue.svg" class="image" />
                   <div style="padding: 14px">
                     <div>{{item.dscrpt}}</div>
-
-
                     <el-button type="primary" @click="start_app(item.name)">启动</el-button>
-
                   </div>
                 </el-card>
               </el-col>
             </el-row>
 
-
           </el-scrollbar>
 
-
         </el-main>
-
 
       </el-container>
     </el-container>
@@ -155,8 +139,6 @@ class ClientFunc {
 }
 
 var clients: ClientData[] = [];
-
-
 //  页面中绑定的数据
 
 const data = reactive({
@@ -187,8 +169,6 @@ const start_app = (app_path: string) => {
 };
 
 // ======== web func end ========
-
-
 
 </script>
 

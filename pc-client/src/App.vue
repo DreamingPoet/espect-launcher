@@ -52,7 +52,8 @@ const data = reactive({
   host: '',
   connected: false,
   checkTimer: 1,
-  state: "waiting ..."
+  state: "waiting ...",
+  debug:"start"
 
 });
 // ======== data end ========
@@ -69,7 +70,7 @@ const get_saved_host = () => {
   invoke("get_saved_host").then(
     (host) => {
       data.host = host as string;
-      connect_websocket();
+      // connect_websocket();
     }
   );
 };
@@ -114,28 +115,36 @@ const clear = () => {
 };
 
 const connect_websocket = () => {
+  data.debug = "connect_websocket"+ data.host;
   // 连接到websocket服务器
   if (socket != null) {
     socket.close()
+    data.debug = "close";
   }
   socket = new WebSocket("ws://" + data.host + "/ws");
+  data.debug = socket;
   socket.onopen = socket_onopen;
   socket.onmessage = socket_onmessage;
   socket.onclose = socket_onclose;
   socket.onerror = socket_onerror;
+  //data.debug = "new WebSocket" + data.host;
 }
 
 onMounted(() => {
-
+  data.debug = "mounted";
   get_saved_host();
+  data.debug = "getsaved";
   data.checkTimer = setInterval(() => {
+    data.debug = "start tick";
     if (!data.connected) {
-      connect_websocket();
+      // connect_websocket();
       data.state = "try connecting to " + data.host + " ...";
+      data.debug = "try connecting ...";
       console.log(data.state);
     } else {
       data.state = "connected to " + data.host + "!";
       socket.send("tick");
+      data.debug = "connected to ...";
       // console.log(data.state);
     }
   }, 5000);
@@ -190,6 +199,7 @@ const close = () => {
 
     <div style="text-align:center; margin-top: 10px;">
       <h5>{{data.state}}</h5>
+      <h5>{{data.debug}}</h5>
     </div>
 
     <div style="text-align:center; margin-top: 30px;">
