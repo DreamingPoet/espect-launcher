@@ -333,6 +333,12 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handl
                     println!("add data failed!");
                 }
 
+                // UI 移除
+                app_handle
+                .emit_all("remove_client_data", &user_id)
+                .unwrap();
+
+
                 return;
             }
         } else {
@@ -342,6 +348,11 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handl
             if tx.send(op).await.is_err() {
                 println!("add data failed!");
             }
+            
+            // UI 移除
+            app_handle
+            .emit_all("remove_client_data", &user_id)
+            .unwrap();
 
             return;
         }
