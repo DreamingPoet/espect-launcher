@@ -43,8 +43,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use crate::client_data::ClientData;
 use crate::client_data::ClientFunc;
 
-//  对客户端的所有的操作
-enum ClientOperation {
+//  对共享数据（ClientMap）的所有的操作
+enum DataOperation {
     Send {
         key: usize,
         msg: String,
@@ -71,8 +71,8 @@ type ClientMap = HashMap<usize, SplitSink<WebSocket, Message>>;
 
 #[tokio::main]
 async fn main() {
-    // 创建一个客户端的集合数据
 
+    // 创建一个访问和操作共享数据的通道
     let (tx, rx) = mpsc::channel(32);
     let tx2 = tx.clone();
     let tx3 = tx.clone();
@@ -115,13 +115,13 @@ struct CustomResponse {
 async fn start_app(
     index: i32,
     app: String,
-    tx: tauri::State<'_, Sender<ClientOperation>>,
+    tx: tauri::State<'_, Sender<DataOperation>>,
 ) -> Result<CustomResponse, String> {
 
     let client_func = ClientFunc{ func_name: "start_app".to_string(), data: app };
     let client_func = serde_json::to_string(&client_func).unwrap();
 
-    let op = ClientOperation::Send {
+    let op = DataOperation::Send {
         key: index as usize,
         msg: client_func,
     };
@@ -138,13 +138,13 @@ async fn start_app(
 }
 
 // 处理数据
-async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
+async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     let mut data: ClientMap = HashMap::default();
     println!("into data handle");
     loop {
         if let Some(op) = rx.recv().await {
             match op {
-                ClientOperation::Send { key, msg } => {
+                DataOperation::Send { key, msg } => {
                     // let sender = data.get_mut(&key);
                     // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
                     println!("send data to client! ");
@@ -155,17 +155,17 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
                         }
                     }
                 }
-                ClientOperation::Add { key, client } => {
+                DataOperation::Add { key, client } => {
                     data.insert(key, client);
                 }
-                ClientOperation::Get { resp } => {
+                DataOperation::Get { resp } => {
                     let mut res: HashSet<String> = HashSet::default();
                     for i in data.iter() {
                         res.insert(i.0.to_string());
                     }
                     let _ = resp.send(Some(res));
                 }
-                ClientOperation::Remove { key } => {
+                DataOperation::Remove { key } => {
                     data.remove(&key);
                 }
             }
@@ -175,14 +175,14 @@ async fn handle_data_channel(mut rx: Receiver<ClientOperation>) {
     }
 }
 
-async fn printclients(tx: Sender<ClientOperation>) {
+async fn printclients(tx: Sender<DataOperation>) {
     println!("into get");
     loop {
         sleep(Duration::from_millis(5000)).await;
         // 临时接受管道
         let (resp_tx, resp_rx) = oneshot::channel();
 
-        let op = ClientOperation::Get { resp: resp_tx };
+        let op = DataOperation::Get { resp: resp_tx };
 
         println!("start get data");
         if tx.send(op).await.is_err() {
@@ -196,7 +196,7 @@ async fn printclients(tx: Sender<ClientOperation>) {
         for i in res.unwrap().unwrap().iter() {
             let id = i.parse::<usize>().unwrap();
             println!("client id = {}", id);
-            let op = ClientOperation::Send {
+            let op = DataOperation::Send {
                 key: id,
                 msg: String::from("hello"),
             };
@@ -208,7 +208,7 @@ async fn printclients(tx: Sender<ClientOperation>) {
     }
 }
 // init a background process on the command, and emit periodic events only to the window that used the command
-async fn start_axum(tx: Sender<ClientOperation>, app_launcher: AppHandle) {
+async fn start_axum(tx: Sender<DataOperation>, app_launcher: AppHandle) {
     sleep(Duration::from_millis(5000)).await;
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
@@ -264,7 +264,7 @@ async fn start_axum(tx: Sender<ClientOperation>, app_launcher: AppHandle) {
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    State((tx, app_handle)): State<(Sender<ClientOperation>, AppHandle)>,
+    State((tx, app_handle)): State<(Sender<DataOperation>, AppHandle)>,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
 ) -> impl IntoResponse {
     if let Some(TypedHeader(user_agent)) = user_agent {
@@ -273,14 +273,14 @@ async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, tx, app_handle))
 }
 
-async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handle: AppHandle) {
+async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle: AppHandle) {
     let user_id = NEXT_USERID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // By splitting we can send and receive at the same time.
     let (sender, mut receiver) = socket.split();
 
     println!("user_id = {}", user_id);
 
-    let op = ClientOperation::Add {
+    let op = DataOperation::Add {
         key: user_id,
         client: sender,
     };
@@ -328,7 +328,7 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handl
             } else {
                 println!("client disconnected id = {}", &user_id);
 
-                let op = ClientOperation::Remove { key: user_id };
+                let op = DataOperation::Remove { key: user_id };
                 if tx.send(op).await.is_err() {
                     println!("add data failed!");
                 }
@@ -344,7 +344,7 @@ async fn handle_socket(socket: WebSocket, tx: Sender<ClientOperation>, app_handl
         } else {
             println!("client disconnected id = {}", &user_id);
 
-            let op = ClientOperation::Remove { key: user_id };
+            let op = DataOperation::Remove { key: user_id };
             if tx.send(op).await.is_err() {
                 println!("add data failed!");
             }

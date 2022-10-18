@@ -65,6 +65,16 @@ const sayhello = function () {
   get_local_data();
 };
 
+
+const reconnect = function () {
+  invoke("reconnect").then(
+    (data) => {
+      // socket.send(data);
+    }
+  );
+};
+
+
 // 获取保存的host
 const get_saved_host = () => {
   invoke("get_saved_host").then(
@@ -193,7 +203,7 @@ const close = () => {
         <el-input v-model="data.host" placeholder="Please input" />
       </el-col>
       <el-col :span="6">
-        <el-button type="primary" @click="sayhello" plain>重连</el-button>
+        <el-button type="primary" @click="reconnect" plain>重连</el-button>
       </el-col>
     </el-row>
 
