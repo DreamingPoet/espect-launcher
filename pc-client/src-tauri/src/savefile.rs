@@ -62,6 +62,7 @@ impl SaveFile {
     }
 
     pub fn set_host(&mut self, key: &str) {
-        self.data.host = key.to_string()
+        self.data.host = key.to_string();
+        self.save_data_to_file();
     }
 }

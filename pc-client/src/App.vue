@@ -1,51 +1,9 @@
 <script setup lang="ts">
-import { appWindow } from '@tauri-apps/api/window'
-import { onMounted, onUnmounted, reactive } from 'vue'
 import { invoke } from "@tauri-apps/api";
+import { appWindow } from '@tauri-apps/api/window'
+import { listen, Event } from "@tauri-apps/api/event"
+import { onMounted, onUnmounted, reactive } from 'vue'
 import { SemiSelect, CloseBold, FolderOpened } from '@element-plus/icons-vue'
-
-let socket:any;
-
-// webSocket连接成功
-const socket_onopen = function (e:any) {
-  data.connected = true;
-  console.log("[open] Connection established");
-  get_local_data();
-};
-
-// 收到消息, 只接收 ClientFunc 类型的数据
-const socket_onmessage = function (event:any) {
-  console.log(`[message] Data received from server: ${event.data}`);
-  let client_data = eval("(" + event.data + ")");
-
- if (event.data == "get_client_data") {
-    get_local_data();
-
-  } else if (client_data.func_name == "start_app") {
-    console.log(client_data.data)
-    
-    start_app(client_data.data);
-  } else {
-    // console.log(event.data)
-  }
-
-};
-
-// webSocket关闭
-const socket_onclose = function (event:any) {
-  data.connected = false;
-  if (event.wasClean) {
-    console.log(`[close] Connection closed, code=${event.code} reason=${event.reason}`);
-  } else {
-    console.log('[close] Connection died');
-  }
-};
-
-// webSocket 错误
-const socket_onerror = function (error:any) {
-  data.connected = false;
-  console.log(error);
-};
 
 // ======== data start ========
 const data = reactive({
@@ -53,25 +11,16 @@ const data = reactive({
   connected: false,
   checkTimer: 1,
   state: "waiting ...",
-  debug:"start"
 
 });
 // ======== data end ========
 
 
 // ======== to tauri start ========
-const sayhello = function () {
-  // socket.send('hello');
-  get_local_data();
-};
 
 
 const reconnect = function () {
-  invoke("reconnect").then(
-    (data) => {
-      // socket.send(data);
-    }
-  );
+  invoke("reconnect", { host: data.host });
 };
 
 
@@ -85,16 +34,6 @@ const get_saved_host = () => {
   );
 };
 
-// 获取 本地数据 机器参数 + apps
-const get_local_data = () => {
-  // 从后台获取数据
-  invoke("get_local_data").then(
-    (data) => {
-      socket.send(data);
-    }
-  );
-};
-
 // 打开本地 app 目录
 const open_app_folder = () => {
   // 从后台获取数据
@@ -104,19 +43,7 @@ const open_app_folder = () => {
   );
 };
 
-// 启动本地 app 目录
-const start_app = (app:string) => {
-  // 从后台获取数据
-  invoke("start_app", { app: app }).then(
-    (data) => {
-    }
-  );
-};
-
-
 // ======== to tauri end ========
-
-
 
 const clear = () => {
   if (data.checkTimer) {
@@ -124,40 +51,26 @@ const clear = () => {
   }
 };
 
-const connect_websocket = () => {
-  data.debug = "connect_websocket"+ data.host;
-  // 连接到websocket服务器
-  if (socket != null) {
-    socket.close()
-    data.debug = "close";
-  }
-  socket = new WebSocket("ws://" + data.host + "/ws");
-  data.debug = socket;
-  socket.onopen = socket_onopen;
-  socket.onmessage = socket_onmessage;
-  socket.onclose = socket_onclose;
-  socket.onerror = socket_onerror;
-  //data.debug = "new WebSocket" + data.host;
-}
 
 onMounted(() => {
-  data.debug = "mounted";
+
+  // data.debug = "mounted";
   get_saved_host();
-  data.debug = "getsaved";
-  data.checkTimer = setInterval(() => {
-    data.debug = "start tick";
-    if (!data.connected) {
-      // connect_websocket();
-      data.state = "try connecting to " + data.host + " ...";
-      data.debug = "try connecting ...";
-      console.log(data.state);
-    } else {
-      data.state = "connected to " + data.host + "!";
-      socket.send("tick");
-      data.debug = "connected to ...";
-      // console.log(data.state);
-    }
-  }, 5000);
+  // data.debug = "getsaved";
+  // data.checkTimer = setInterval(() => {
+  //   data.debug = "start tick";
+  //   if (!data.connected) {
+  //     // connect_websocket();
+  //     data.state = "try connecting to " + data.host + " ...";
+  //     data.debug = "try connecting ...";
+  //     console.log(data.state);
+  //   } else {
+  //     data.state = "connected to " + data.host + "!";
+  //     socket.send("tick");
+  //     data.debug = "connected to ...";
+  //     // console.log(data.state);
+  //   }
+  // }, 5000);
 
 
 });
@@ -166,10 +79,28 @@ onUnmounted(() => {
   clear();
 });
 
+// 监听来自后端的事件
+// ======== from tauri start =========
+listen("keep-alive", function (data: Event<any>) {
+  console.log(data.payload);
+});
+
+// 获取来自客户端的数据之后, 更新 UI
+listen("check_connect_state", function (event_data: Event<any>) {
+  if (event_data.payload) {
+    data.state = "connected to " + data.host + "!";
+  } else {
+    data.state = "try connecting to " + data.host + " ...";
+  }
+});
+
+
+// ======== from tauri end =========
 
 
 
-// ===== window title =======
+
+// ===== window title start =======
 const minimize = () => {
   appWindow.minimize();
 }
@@ -177,7 +108,7 @@ const minimize = () => {
 const close = () => {
   appWindow.hide();
 }
-// ===== window title =======
+// ===== window title end =======
 
 </script>
 
@@ -209,7 +140,6 @@ const close = () => {
 
     <div style="text-align:center; margin-top: 10px;">
       <h5>{{data.state}}</h5>
-      <h5>{{data.debug}}</h5>
     </div>
 
     <div style="text-align:center; margin-top: 30px;">

@@ -3,26 +3,25 @@
     windows_subsystem = "windows"
 )]
 
-use tokio::io;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async, WebSocketStream, MaybeTlsStream};
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 mod client_data;
 mod savefile;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
-use std::{env, fs, default};
+use std::{env, fs};
 
 use client_data::ClientFunc;
-use sysinfo::{ProcessExt, System, SystemExt};
-use tauri::{CustomMenuItem, SystemTrayMenu};
-use tauri::{Manager, SystemTray, SystemTrayEvent};
 use futures::{
     stream::{SplitSink, StreamExt},
     SinkExt,
 };
+use sysinfo::{ProcessExt, System, SystemExt};
+use tauri::{AppHandle, CustomMenuItem, SystemTrayMenu};
+use tauri::{Manager, SystemTray, SystemTrayEvent};
 
 use tokio::{
     sync::{
@@ -32,20 +31,21 @@ use tokio::{
     time::sleep,
 };
 
+type ServerSender = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 //  对共享数据（webSocket server）的所有的操作
 enum DataOperation {
     // send data to ws-server
-    Send {
-        msg: String,
-    },
+    Send { msg: String },
     // set ws-server when connected
-    Set {
-        server: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
-    },
+    Set { server: ServerSender },
     // close ws-server
-    Close {
-    }
+    Close {},
+    // check connect state
+    Check { resp: Responder<bool> },
 }
+
+// 对共享数据中服务器操作的响应
+type Responder<T> = oneshot::Sender<T>;
 
 #[derive(serde::Serialize)]
 struct CustomResponse {
@@ -73,6 +73,7 @@ async fn main() {
     // 创建一个访问和操作共享数据的通道
     let (tx, rx) = mpsc::channel(32);
     let tx2 = tx.clone();
+    let tx_check = tx.clone();
     let tx_tauri_command = tx.clone(); // for tauri::command
 
     // ======================= websocket end =======================
@@ -82,6 +83,8 @@ async fn main() {
             let app_launcher = app.app_handle();
             tokio::spawn(handle_data_channel(rx));
             tokio::spawn(handle_websocket(tx2));
+            tokio::spawn(check_connect_state(tx_check, app_launcher));
+
             Ok(())
         })
         // 传递参数给 tauri::command
@@ -145,7 +148,6 @@ fn get_saved_host() -> String {
     let s = config.get_host();
     println!("config = {}", s);
     s
-    // String::from("127.0.0.1:3000")
 }
 
 #[tauri::command]
@@ -196,100 +198,95 @@ fn start_app(app: String) {
     Command::new(&app).spawn().unwrap();
 }
 
+// 断开重连
 #[tauri::command]
-async fn reconnect(tx: tauri::State<'_, Sender<DataOperation>>,) -> Result<CustomResponse, String> {
+async fn reconnect(
+    host: String,
+    tx: tauri::State<'_, Sender<DataOperation>>,
+) -> Result<CustomResponse, String> {
+    // 保存到配置文件
+    let mut config = savefile::SaveFile::new("./myconfig.yml");
+    config.set_host(&host.to_owned());
 
-    let op = DataOperation::Close{};
-
-    println!("reconnect");
-
-    if tx.send(op).await.is_err() {
-        println!("send data failed!");
-        Err("No result".into())
-    } else {
-        println!("send ok");
-        Ok(CustomResponse {
-            message: "".to_string()
-        })
-    }
+    handle_websocket(tx.inner().clone()).await;
+    Ok(CustomResponse {
+        message: "".to_string(),
+    })
 }
 
-
-
+// 连接到服务器,并开始监听
 async fn handle_websocket(tx: Sender<DataOperation>) {
-    let connect_addr = "ws://192.168.0.33:3000/ws".to_string();
+    let saved_host = &get_saved_host();
+    if saved_host.is_empty() {
+        return;
+    }
 
-    // let connect_addr = get_saved_host();
-    // if let
+    let connect_addr = "ws://".to_string() + saved_host + &"/ws".to_string();
 
     let url = url::Url::parse(&connect_addr).unwrap();
 
     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
 
-    // let op = DataOperation::Set { server: ws_stream };
-    // if tx.send(op).await.is_err() {
-    //     println!("send data failed!");
-    // } else {
-    //     println!("send ok");
-    // }
+    let (sender, mut receiver) = ws_stream.split();
 
-    let (mut write, read) = ws_stream.split();
+    let op = DataOperation::Set { server: sender };
+    if tx.send(op).await.is_err() {
+        println!("send data failed!");
+    } else {
+        println!("send ok");
+    }
 
-    sleep(Duration::from_millis(4000)).await;
-    write.close().await;
-    
-    // // 循环接收来自服务器的数据
-    // read.for_each(|msg| async {
-    //     if let Ok(msg) = msg {
-    //         match msg {
-    //             Message::Text(t) => {
-    //                 println!("on get client str: {:?}", t);
+    loop {
+        if let Some(msg) = receiver.next().await {
+            if let Ok(msg) = msg {
+                match msg {
+                    Message::Text(t) => {
+                        println!("on get client str: {:?}", t);
 
-    //                 // // 接收到 Json 字符串
-    //                 // if let Ok(client_func) = serde_json::from_str::<ClientFunc>(&t) {
-    //                 //     // 匹配函数名称
-    //                 //     match &client_func.func_name as &str {
-    //                 //         // 注册客户端
-    //                 //         "regist_client" => {}
-    //                 //         // 获取客户端本地数据
-    //                 //         "on_get_client_data" => {
-    //                 //             // 解成Json , 设置 id 再转回 string
-    //                 //             let mut client_data: ClientData =
-    //                 //                 serde_json::from_str(&client_func.data).unwrap();
-    //                 //             client_data.id = user_id as i32;
-    //                 //             // println!("user_id = {}", client_data.ip);
-    //                 //             // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
-    //                 //             let client_str =
-    //                 //                 serde_json::to_string_pretty(&client_data).unwrap();
-    //                 //             app_handle
-    //                 //                 .emit_all("on_get_client_data", &client_str)
-    //                 //                 .unwrap();
-    //                 //         }
-    //                 //         _ => {}
-    //                 //     }
-    //                 // } else {
-    //                 //     println!("not a function!")
-    //                 // }
-    //             }
-    //             _ => {}
-    //         }
-    //     } else {
-    //         println!("disconnected to server");
-    //         return;
-    //     }
-    // })
-    // .await;
-
-
-
+                        // // 接收到 Json 字符串
+                        // if let Ok(client_func) = serde_json::from_str::<ClientFunc>(&t) {
+                        //     // 匹配函数名称
+                        //     match &client_func.func_name as &str {
+                        //         // 注册客户端
+                        //         "regist_client" => {}
+                        //         // 获取客户端本地数据
+                        //         "on_get_client_data" => {
+                        //             // 解成Json , 设置 id 再转回 string
+                        //             let mut client_data: ClientData =
+                        //                 serde_json::from_str(&client_func.data).unwrap();
+                        //             client_data.id = user_id as i32;
+                        //             // println!("user_id = {}", client_data.ip);
+                        //             // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
+                        //             let client_str =
+                        //                 serde_json::to_string_pretty(&client_data).unwrap();
+                        //             app_handle
+                        //                 .emit_all("on_get_client_data", &client_str)
+                        //                 .unwrap();
+                        //         }
+                        //         _ => {}
+                        //     }
+                        // } else {
+                        //     println!("not a function!")
+                        // }
+                    }
+                    _ => {}
+                }
+            } else {
+                println!("disconnected to server!::1");
+                return;
+            }
+        } else {
+            println!("disconnected to server!::2 ");
+            return;
+        }
+    }
 }
-
 
 // 处理数据
 async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
-    let mut data:Option<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>> = None;
-    
+    let mut data: Option<ServerSender> = None;
+
     loop {
         if let Some(op) = rx.recv().await {
             match op {
@@ -304,14 +301,21 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                 }
                 DataOperation::Set { server } => {
                     if let Some(ref mut current_server) = data {
-                        let _ = current_server.close(None).await;
+                        let _ = current_server.close().await;
                     }
                     data = Some(server);
                 }
-                DataOperation::Close {  } => {
+                DataOperation::Close {} => {
                     if let Some(ref mut server) = data {
-                        let _ =  server.close(None).await;
+                        let _ = server.close().await;
                         data = None;
+                    }
+                }
+                DataOperation::Check { resp } => {
+                    if let Some(ref mut current_server) = data {
+                        let _ = resp.send(true);
+                    } else {
+                        let _ = resp.send(false);
                     }
                 }
             }
@@ -321,6 +325,32 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     }
 }
 
+async fn check_connect_state(tx: Sender<DataOperation>, app_handle: AppHandle) {
+    loop {
+        sleep(Duration::from_millis(1000)).await;
+
+        // 临时接受管道
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let op = DataOperation::Check { resp: resp_tx };
+
+        println!("start get data");
+        if tx.send(op).await.is_err() {
+            println!("get data failed!");
+        }
+        let res = resp_rx.await;
+        if let Ok(check_res) = res {
+            match check_res {
+                true => {
+                    app_handle.emit_all("check_connect_state", true).unwrap();
+                }
+                false => {
+                    app_handle.emit_all("check_connect_state", false).unwrap();
+                }
+            }
+        }
+    }
+}
 
 /// ```
 /// #[tokio::main]
