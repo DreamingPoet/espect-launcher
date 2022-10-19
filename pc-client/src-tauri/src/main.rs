@@ -176,17 +176,21 @@ fn open_app_folder() {
 }
 
 async fn start_app(app: String) {
-    println!("start_app  = {:?}", app);
+    let app_exe = app + &".exe";
+    let path = env::current_dir().unwrap().join("apps");
+    let path = path.join(&app_exe);
 
-    let path = Path::new(&app);
-    println!("start_app_exe  = {:?}", path.file_name());
+    println!("start_app_path  = {:?}", path);
 
-    if client_data::is_app_running(&app) {
+    println!("start_app_exe  = {:?}", app_exe);
+
+    if client_data::is_app_running(&app_exe) {
         return;
     }
 
-    Command::new(&app).spawn().unwrap();
+    Command::new(&path).spawn().unwrap();
 }
+
 
 fn get_local_data() -> String {
     let func = ClientFunc {
@@ -198,7 +202,7 @@ fn get_local_data() -> String {
 
 fn get_update_data(local_apps: &Vec<ClientApp>) -> String {
     let func = ClientFunc {
-        func_name: "on_get_update_data".to_string(),
+        func_name: "on_update_client".to_string(),
         data: client_data::get_update_data(local_apps),
     };
 
@@ -269,25 +273,13 @@ async fn handle_websocket(tx: Sender<DataOperation>, local_apps: Vec<ClientApp>)
                                 if let Ok(client_func) = serde_json::from_str::<ClientFunc>(&t) {
                                     // 匹配函数名称
                                     match &client_func.func_name as &str {
-                                        // 注册客户端
-                                        "regist_client" => {}
-                                        // 获取客户端本地数据
-                                        "on_get_client_data" => {
-                                            // // 解成Json , 设置 id 再转回 string
-                                            // let mut client_data: ClientData =
-                                            //     serde_json::from_str(&client_func.data).unwrap();
-                                            // client_data.id = user_id as i32;
-                                            // // println!("user_id = {}", client_data.ip);
-                                            // // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
-                                            // let client_str =
-                                            //     serde_json::to_string_pretty(&client_data).unwrap();
-                                            // app_handle
-                                            //     .emit_all("on_get_client_data", &client_str)
-                                            //     .unwrap();
-                                        }
-                                        // 获取客户端本地数据
+                                        // 启动应用
                                         "start_app" => {
                                             start_app(client_func.data).await;
+                                        }
+                                        // 关闭应用
+                                        "stop_app" => {
+                                            client_data::kill_app(&client_func.data);
                                         }
                                         // 获取自己需要更新的数据
                                         "update_client" => {
@@ -367,36 +359,35 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
 
 // 定时检查连接状态
 async fn check_connect_state(tx: Sender<DataOperation>, app_handle: AppHandle) {
-        loop {
-            // println!("checking 1... ...");
-            sleep(Duration::from_millis(1000)).await;
-            
-            // 临时接受管道
-            let (resp_tx, resp_rx) = oneshot::channel();
-            
-            let op = DataOperation::Check { resp: resp_tx };
-            
-            let _ = tx.send(op).await;
-            
-            let res = resp_rx.await;
-            // println!("checking 2... ...");
+    loop {
+        // println!("checking 1... ...");
+        sleep(Duration::from_millis(1000)).await;
 
-            if let Ok(check_res) = res {
-                match check_res {
-                    true => {
-                        app_handle.emit_all("check_connect_state", true).unwrap();
-                    }
-                    false => {
-                        app_handle.emit_all("check_connect_state", false).unwrap();
-                        let local_apps = client_data::get_local_apps();
-                        handle_websocket(tx.clone(), local_apps).await;
-                    }
+        // 临时接受管道
+        let (resp_tx, resp_rx) = oneshot::channel();
+
+        let op = DataOperation::Check { resp: resp_tx };
+
+        let _ = tx.send(op).await;
+
+        let res = resp_rx.await;
+        // println!("checking 2... ...");
+
+        if let Ok(check_res) = res {
+            match check_res {
+                true => {
+                    app_handle.emit_all("check_connect_state", true).unwrap();
                 }
-            } else {
-                app_handle.emit_all("check_connect_state", false).unwrap();
-                let local_apps = client_data::get_local_apps();
-                handle_websocket(tx.clone(), local_apps).await;
+                false => {
+                    app_handle.emit_all("check_connect_state", false).unwrap();
+                    let local_apps = client_data::get_local_apps();
+                    handle_websocket(tx.clone(), local_apps).await;
+                }
             }
+        } else {
+            app_handle.emit_all("check_connect_state", false).unwrap();
+            let local_apps = client_data::get_local_apps();
+            handle_websocket(tx.clone(), local_apps).await;
         }
     }
 }

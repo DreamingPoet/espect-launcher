@@ -53,26 +53,7 @@ const clear = () => {
 
 
 onMounted(() => {
-
-  // data.debug = "mounted";
   get_saved_host();
-  // data.debug = "getsaved";
-  // data.checkTimer = setInterval(() => {
-  //   data.debug = "start tick";
-  //   if (!data.connected) {
-  //     // connect_websocket();
-  //     data.state = "try connecting to " + data.host + " ...";
-  //     data.debug = "try connecting ...";
-  //     console.log(data.state);
-  //   } else {
-  //     data.state = "connected to " + data.host + "!";
-  //     socket.send("tick");
-  //     data.debug = "connected to ...";
-  //     // console.log(data.state);
-  //   }
-  // }, 5000);
-
-
 });
 
 onUnmounted(() => {

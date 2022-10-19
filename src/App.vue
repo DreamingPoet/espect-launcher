@@ -19,18 +19,35 @@
 
           <!-- 内部容器 main-->
           <el-scrollbar>
+            <div v-if="data.clients.get(data.current_client_id)">
+              <el-row>
+                <div>{{data.clients.get(data.current_client_id).name}}</div>
+                <div>{{data.clients.get(data.current_client_id).ip}}</div>
 
-            <el-row v-if="data.clients.get(data.current_client_id)">
-              <el-col v-for="(item, index) in data.clients.get(data.current_client_id).apps" :span="6" :offset="1">
-                <el-card :body-style="{ padding: '0px' }">
-                  <img src="./assets/vue.svg" class="image" />
-                  <div style="padding: 14px">
-                    <div>{{item.dscrpt}}</div>
-                    <el-button type="primary" @click="start_app(item.name)">启动</el-button>
-                  </div>
-                </el-card>
-              </el-col>
-            </el-row>
+              </el-row>
+
+
+              <el-row>
+       
+
+              </el-row>
+
+              <el-row>
+                <el-col v-for="(item, index) in data.clients.get(data.current_client_id).apps" :span="6" :offset="1">
+                  <el-card :body-style="{ padding: '0px' }">
+                    <img src="./assets/vue.svg" class="image" />
+                    <div style="padding: 14px">
+                      <div>{{item.name}}</div>
+                      <el-button v-if="item.state" type="danger" @click="start_app(item.name, false)">关闭</el-button>
+
+                      <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/' +item.name, true)">启动</el-button>
+
+                    </div>
+                  </el-card>
+                </el-col>
+              </el-row>
+
+            </div>
 
           </el-scrollbar>
 
@@ -71,8 +88,27 @@ listen("remove_client_data", function (client_data: Event<any>) {
 });
 
 // 接收来自客户端的更新信息
-listen("on_update_client", function (data: Event<any>) {
-  console.log(data.payload);
+listen("on_update_client", function (client_data: Event<any>) {
+  let update_data: ClientUpdateData = eval("(" + client_data.payload + ")");
+
+  // console.log(data.clients.get(data.current_client_id).apps)
+  for(let i of update_data.apps) {
+    if( i.data == "true"){
+      for( let j of data.clients.get(data.current_client_id).apps ) {
+        if(j.name == i.name) {
+          console.log(j.name + "set true")
+          j.state = true;
+        }
+      }
+    }else {
+      for( let j of data.clients.get(data.current_client_id).apps ) {
+        if(j.name == i.name) {
+          console.log(j.name + "set false")
+          j.state = false;
+        }
+      }
+    }
+  }
 });
 
 
@@ -97,13 +133,18 @@ class ClientOperation {
 
 class ClientApp {
   name: string;
+  folder: string; // 文件夹名称
   dscrpt: string;
   icon: string;
+  state:boolean;
   // 构造函数
-  constructor(name: string, dscrpt: string, icon: string) {
+  constructor(name: string, folder: string, dscrpt: string, icon: string, state:boolean) {
     this.name = name;
+    this.folder = folder;
     this.dscrpt = dscrpt;
     this.icon = icon;
+    this.state = state;
+
   }
 }
 
@@ -136,24 +177,27 @@ class ClientData {
 
 class ClientStateData {
   name: string;
-  data: any;
+  data: string;
 
   // 构造函数
   constructor(
     name: string,
+    data: string
   ) {
     this.name = name;
+    this.data = data;
+
   }
 }
 
 class ClientUpdateData {
   states: ClientStateData[];
-  apps: ClientApp[];
+  apps: ClientStateData[];
 
   // 构造函数
   constructor(
     states: ClientStateData[],
-    apps: ClientApp[]
+    apps: ClientStateData[]
   ) {
     this.states = states;
     this.apps = apps;
@@ -190,9 +234,9 @@ const call_option = function (index: number) {
 };
 
 // 启动app
-const start_app = (app_path: string) => {
+const start_app = (app_path: string, start: boolean) => {
   if (data.clients.get(data.current_client_id) != undefined) {
-    invoke("start_app", { id: data.clients.get(data.current_client_id).id, app: app_path });
+    invoke("start_app", { id: data.clients.get(data.current_client_id).id, start:start,  app: app_path });
   }
 };
 

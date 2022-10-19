@@ -114,20 +114,28 @@ struct CustomResponse {
 #[tauri::command]
 async fn start_app(
     id: i32,
+    start: bool,
     app: String,
     tx: tauri::State<'_, Sender<DataOperation>>,
 ) -> Result<CustomResponse, String> {
-    let client_func = ClientFunc {
-        func_name: "start_app".to_string(),
-        data: app,
-    };
+    let client_func:ClientFunc;
+    if start {
+        client_func = ClientFunc {
+            func_name: "start_app".to_string(),
+            data: app,
+        };
+    } else {
+        client_func = ClientFunc {
+            func_name: "stop_app".to_string(),
+            data: app,
+        };
+    }
     let client_func = serde_json::to_string(&client_func).unwrap();
 
     let op = DataOperation::Send {
         key: id as usize,
         msg: client_func,
     };
-    println!("start get data");
     if tx.send(op).await.is_err() {
         println!("get data failed!");
         Err("No result".into())

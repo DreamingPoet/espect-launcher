@@ -29,4 +29,5 @@ pub struct ClientApp {
     pub folder: String, // 文件夹名称
     pub dscrpt: String, // 描述
     pub icon: String,
+    pub state: bool, // 运行状态
 }
