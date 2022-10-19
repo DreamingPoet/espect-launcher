@@ -43,8 +43,7 @@
 
 <script lang="ts" setup>
 import Cards from './components/cards/Cards.vue'
-import Client from './components/Client.vue'
-import { reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive } from 'vue'
 import { Menu as IconMenu, Message, Setting } from '@element-plus/icons-vue'
 
 import { invoke } from '@tauri-apps/api'
@@ -65,11 +64,18 @@ listen("on_get_client_data", function (client_data: Event<any>) {
 });
 
 
-// 获取来自客户端的数据之后, 更新 UI
+// 客户端断开连接
 listen("remove_client_data", function (client_data: Event<any>) {
   console.log("remove_client_data id = " + client_data.payload);
   data.clients.delete(client_data.payload);
 });
+
+// 接收来自客户端的更新信息
+listen("on_update_client", function (data: Event<any>) {
+  console.log(data.payload);
+});
+
+
 
 
 
@@ -128,6 +134,32 @@ class ClientData {
   }
 }
 
+class ClientStateData {
+  name: string;
+  data: any;
+
+  // 构造函数
+  constructor(
+    name: string,
+  ) {
+    this.name = name;
+  }
+}
+
+class ClientUpdateData {
+  states: ClientStateData[];
+  apps: ClientApp[];
+
+  // 构造函数
+  constructor(
+    states: ClientStateData[],
+    apps: ClientApp[]
+  ) {
+    this.states = states;
+    this.apps = apps;
+  }
+}
+
 class ClientFunc {
   func_name: String;
   data: String;
@@ -138,12 +170,12 @@ class ClientFunc {
   }
 }
 
-var clients: ClientData[] = [];
 //  页面中绑定的数据
 
 const data = reactive({
   clients: new Map(),
   current_client_id: -1,
+  update_client_timer: -1,
 
 });
 
@@ -160,13 +192,37 @@ const call_option = function (index: number) {
 // 启动app
 const start_app = (app_path: string) => {
   if (data.clients.get(data.current_client_id) != undefined) {
-    invoke("start_app", { index: data.clients.get(data.current_client_id).id, app: app_path }).then(
-      (host) => {
-
-      }
-    );
+    invoke("start_app", { id: data.clients.get(data.current_client_id).id, app: app_path });
   }
 };
+
+
+const clear = () => {
+  if (data.update_client_timer) {
+    clearInterval(data.update_client_timer);
+  }
+};
+
+
+onMounted(() => {
+
+  data.update_client_timer = setInterval(() => {
+    update_client();
+  }, 2000);
+
+
+});
+
+// 更新客户端信息
+const update_client = () => {
+  if (data.current_client_id < 0) return;
+  invoke("update_client", { id: data.current_client_id });
+};
+
+
+onUnmounted(() => {
+  clear();
+});
 
 // ======== web func end ========
 

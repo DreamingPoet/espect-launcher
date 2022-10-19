@@ -7,6 +7,7 @@ mod client_data;
 
 use std::{
     collections::{HashMap, HashSet},
+    default,
     time::Duration,
 };
 
@@ -71,7 +72,6 @@ type ClientMap = HashMap<usize, SplitSink<WebSocket, Message>>;
 
 #[tokio::main]
 async fn main() {
-
     // 创建一个访问和操作共享数据的通道
     let (tx, rx) = mpsc::channel(32);
     let tx2 = tx.clone();
@@ -95,7 +95,7 @@ async fn main() {
             Ok(())
         })
         .manage(tx3)
-        .invoke_handler(tauri::generate_handler![greet, start_app])
+        .invoke_handler(tauri::generate_handler![greet, start_app, update_client])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -113,16 +113,18 @@ struct CustomResponse {
 
 #[tauri::command]
 async fn start_app(
-    index: i32,
+    id: i32,
     app: String,
     tx: tauri::State<'_, Sender<DataOperation>>,
 ) -> Result<CustomResponse, String> {
-
-    let client_func = ClientFunc{ func_name: "start_app".to_string(), data: app };
+    let client_func = ClientFunc {
+        func_name: "start_app".to_string(),
+        data: app,
+    };
     let client_func = serde_json::to_string(&client_func).unwrap();
 
     let op = DataOperation::Send {
-        key: index as usize,
+        key: id as usize,
         msg: client_func,
     };
     println!("start get data");
@@ -137,6 +139,30 @@ async fn start_app(
     }
 }
 
+// 去客户端请求需要更新的数据
+#[tauri::command]
+async fn update_client(id: i32, tx: tauri::State<'_, Sender<DataOperation>>) -> Result<String, String> {
+
+    let client_func = ClientFunc {
+        func_name: "update_client".to_string(),
+        data: "".to_string(),
+    };
+    let client_func = serde_json::to_string(&client_func).unwrap();
+
+    let op = DataOperation::Send {
+        key: id as usize,
+        msg: client_func,
+    };
+
+    if tx.send(op).await.is_err() {
+        println!("get data failed!");
+        Err("".into())
+    } else {
+        Ok("".to_string())
+    }
+
+}
+
 // 处理数据
 async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     let mut data: ClientMap = HashMap::default();
@@ -144,7 +170,7 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     loop {
         if let Some(op) = rx.recv().await {
             match op {
-                DataOperation::Send { key, msg } => {
+                DataOperation::Send { key, msg} => {
                     // let sender = data.get_mut(&key);
                     // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
                     println!("send data to client! ");
@@ -273,6 +299,7 @@ async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, tx, app_handle))
 }
 
+//  接收来自客户端的信息
 async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle: AppHandle) {
     let user_id = NEXT_USERID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // By splitting we can send and receive at the same time.
@@ -301,21 +328,25 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                         if let Ok(client_func) = serde_json::from_str::<ClientFunc>(&t) {
                             // 匹配函数名称
                             match &client_func.func_name as &str {
-                                // 注册客户端
-                                "regist_client" => {}
                                 // 获取客户端本地数据
                                 "on_get_client_data" => {
                                     // 解成Json , 设置 id 再转回 string
                                     let mut client_data: ClientData =
-                                        serde_json::from_str(&client_func.data).unwrap();
+                                    serde_json::from_str(&client_func.data).unwrap();
                                     client_data.id = user_id as i32;
                                     // println!("user_id = {}", client_data.ip);
                                     // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
                                     let client_str =
-                                        serde_json::to_string_pretty(&client_data).unwrap();
+                                    serde_json::to_string_pretty(&client_data).unwrap();
                                     app_handle
-                                        .emit_all("on_get_client_data", &client_str)
-                                        .unwrap();
+                                    .emit_all("on_get_client_data", &client_str)
+                                    .unwrap();
+                                }
+                                // 当收到来自客户端的更新信息
+                                "on_update_client" => {
+                                    app_handle
+                                    .emit_all("on_update_client", &client_func.data)
+                                    .unwrap();
                                 }
                                 _ => {}
                             }
@@ -334,10 +365,7 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                 }
 
                 // UI 移除
-                app_handle
-                .emit_all("remove_client_data", &user_id)
-                .unwrap();
-
+                app_handle.emit_all("remove_client_data", &user_id).unwrap();
 
                 return;
             }
@@ -348,11 +376,9 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
             if tx.send(op).await.is_err() {
                 println!("add data failed!");
             }
-            
+
             // UI 移除
-            app_handle
-            .emit_all("remove_client_data", &user_id)
-            .unwrap();
+            app_handle.emit_all("remove_client_data", &user_id).unwrap();
 
             return;
         }

@@ -25,30 +25,8 @@ pub struct ClientOperation {
 
 #[derive(Serialize,Deserialize)]
 pub struct ClientApp {
-    pub name: String,
-    pub dscrpt: String,
+    pub name: String, // 名称
+    pub folder: String, // 文件夹名称
+    pub dscrpt: String, // 描述
     pub icon: String,
-}
-
-
-pub fn get_local_data() -> String {
-    let ops = vec![
-        ClientOperation { name: "Start SteamVR".to_string(), dscrpt: "".to_string() },
-        ClientOperation { name: "Power Down".to_string(), dscrpt: "".to_string() },
-    ];
-
-    let apps = vec![
-        ClientApp { name: "导游培训".to_string(), dscrpt: "".to_string(), icon: "".to_string() },
-        ClientApp { name: "试听实验".to_string(), dscrpt: "".to_string(), icon: "".to_string() },
-    ];
-
-    let data = ClientData {
-        id: -1,
-        name: "背包1".to_string(),
-        ip: "127.0.0.1".to_string(),
-        b_admin: false,
-        client_op: ops ,
-        apps:apps,
-    };
-    serde_json::to_string_pretty(&data).unwrap()
 }
