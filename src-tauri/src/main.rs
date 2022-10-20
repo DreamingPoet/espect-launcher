@@ -23,7 +23,6 @@ use tokio::{
     },
     time::sleep,
 };
-
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -60,6 +59,15 @@ enum DataOperation {
     Remove {
         key: usize,
     },
+    AddClientInfo {
+        key: usize,
+        info:String,
+    },
+    // 客户端（一般是移动端），请求所有客户端信息的时候，直接返回给它
+    RetuenAllClientInfo {
+        key: usize,
+    }
+    
 }
 
 // 对客户端操作的响应
@@ -174,6 +182,7 @@ async fn update_client(id: i32, tx: tauri::State<'_, Sender<DataOperation>>) -> 
 // 处理数据
 async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     let mut data: ClientMap = HashMap::default();
+    let mut client_info:HashMap<usize, String> = HashMap::default();
     println!("into data handle");
     loop {
         if let Some(op) = rx.recv().await {
@@ -201,7 +210,32 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                 }
                 DataOperation::Remove { key } => {
                     data.remove(&key);
+                    client_info.remove(&key);
                 }
+
+                DataOperation::AddClientInfo { key , info } => {
+                    client_info.insert(key, info);
+                }
+
+                DataOperation::RetuenAllClientInfo{ key } => {
+                    
+                    let mut res: HashSet<String> = HashSet::default();
+                    for i in client_info.iter() {
+                        res.insert(i.0.to_string());
+                    }
+                    if let Ok(res_string) =  serde_json::to_string_pretty(&res) {
+
+                        if let Some(sender) = data.get_mut(&key) {
+                            if sender.send(Message::Text(res_string)).await.is_err() {
+                                println!("send data failed!");
+                                // return;
+                            }
+                        }
+
+                    }
+
+                }
+                
             }
         } else {
             println!("recv failed!");
@@ -349,12 +383,22 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                                     app_handle
                                     .emit_all("on_get_client_data", &client_str)
                                     .unwrap();
+
+                                    // 保存客户端信息
+                                    let op = DataOperation::AddClientInfo { key: user_id, info: client_str};
+                                    let _ =  tx.send(op).await;
                                 }
                                 // 当收到来自客户端的更新信息
+                                // 同时转发到移动端
                                 "on_update_client" => {
                                     app_handle
                                     .emit_all("on_update_client", &client_func.data)
                                     .unwrap();
+                                }
+                                // 移动端定时获取所有的客户端的基本信息
+                                "on_get_all_clients" => {
+                                    let op = DataOperation::RetuenAllClientInfo { key: user_id };
+                                    let _ =  tx.send(op).await;
                                 }
                                 _ => {}
                             }
