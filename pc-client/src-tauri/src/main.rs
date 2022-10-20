@@ -12,14 +12,13 @@ mod savefile;
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
-use std::{default, env, fs};
+use std::{env, fs};
 
 use client_data::ClientFunc;
 use futures::{
     stream::{SplitSink, StreamExt},
     SinkExt,
 };
-use sysinfo::{ProcessExt, System, SystemExt};
 use tauri::{AppHandle, CustomMenuItem, SystemTrayMenu};
 use tauri::{Manager, SystemTray, SystemTrayEvent};
 
@@ -31,7 +30,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::client_data::{ClientApp, ClientData};
+use crate::client_data::ClientApp;
 
 type ServerSender = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
 //  对共享数据（webSocket server）的所有的操作
@@ -191,7 +190,6 @@ async fn start_app(app: String) {
     Command::new(&path).spawn().unwrap();
 }
 
-
 fn get_local_data() -> String {
     let func = ClientFunc {
         func_name: "on_get_client_data".to_string(),
@@ -240,7 +238,7 @@ async fn handle_websocket(tx: Sender<DataOperation>, local_apps: Vec<ClientApp>)
 
     let url = url::Url::parse(&connect_addr).unwrap();
 
-    if let Ok((ws_stream, msg)) = connect_async(url).await {
+    if let Ok((ws_stream, _msg)) = connect_async(url).await {
         println!("WebSocket handshake has been successfully completed");
 
         let (sender, mut receiver) = ws_stream.split();

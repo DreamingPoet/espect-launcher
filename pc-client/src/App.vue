@@ -96,6 +96,13 @@ const close = () => {
 <template>
 
   <div data-tauri-drag-region class="titlebar">
+    <img src="/Square30x30Logo.png" />
+    <div class="titlebar-text" id="titlebar-text">
+      espect-launcher-client
+    </div>
+    
+<div class="buttons" >
+
     <div @click="minimize()" class="titlebar-button" id="titlebar-minimize">
       <el-icon>
         <SemiSelect />
@@ -107,6 +114,9 @@ const close = () => {
         <CloseBold />
       </el-icon>
     </div>
+
+  </div>
+
   </div>
 
   <div class="window-main">
@@ -136,11 +146,28 @@ const close = () => {
   background: #eeeeee;
   user-select: none;
   display: flex;
-  justify-content: flex-end;
+  /* justify-content: flex-end; */
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
+}
+
+.buttons {
+
+  justify-content: right;
+  background: #ff0404;
+
+}
+
+.titlebar-text {
+  font-size: 15px;
+  text-align: center;
+ vertical-align: middle;
+  justify-content: left;
+  margin-left: 5px;
+
+
 }
 
 .titlebar-button,

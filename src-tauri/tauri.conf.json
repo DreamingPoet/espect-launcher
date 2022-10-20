@@ -56,9 +56,10 @@
       {
         "fullscreen": false,
         "height": 600,
-        "resizable": true,
+        "resizable": false,
         "title": "espect-launcher",
-        "width": 800
+        "width": 900,
+        "maximized": false
       }
     ]
   }

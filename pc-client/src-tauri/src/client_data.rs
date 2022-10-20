@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::{env};
 
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, System, SystemExt};
