@@ -89,7 +89,7 @@ async fn main() {
         .setup(|app| {
             let app_launcher = app.app_handle();
             tokio::spawn(handle_data_channel(rx));
-            tokio::spawn(printclients(tx2));
+            // tokio::spawn(printclients(tx2));
             tokio::spawn(start_axum(tx, app_launcher));
 
             //     tauri::async_runtime::spawn(async move {
@@ -221,17 +221,20 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                     
                     let mut res: HashSet<String> = HashSet::default();
                     for i in client_info.iter() {
-                        res.insert(i.0.to_string());
+                        res.insert(i.1.to_string());
                     }
                     if let Ok(res_string) =  serde_json::to_string_pretty(&res) {
 
                         if let Some(sender) = data.get_mut(&key) {
+                            println!("send data to client = {}", &res_string);
                             if sender.send(Message::Text(res_string)).await.is_err() {
                                 println!("send data failed!");
                                 // return;
                             }
                         }
 
+                    }else {
+                        println!("serde_json failed!");
                     }
 
                 }
@@ -396,7 +399,7 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                                     .unwrap();
                                 }
                                 // 移动端定时获取所有的客户端的基本信息
-                                "on_get_all_clients" => {
+                                "get_all_clients" => {
                                     let op = DataOperation::RetuenAllClientInfo { key: user_id };
                                     let _ =  tx.send(op).await;
                                 }

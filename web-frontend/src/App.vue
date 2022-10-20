@@ -1,47 +1,81 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive } from 'vue'
 
+let socket: any;
+let get_all_clients_timer: any;
+
 onMounted(() => {
-  // http://localhost:3001/?server=192.168.0.0.1:3000&port=5000
-  let server = getQueryVariable("server")
-  let port = getQueryVariable("port")
-  console.log(server);
-  console.log(port);
+  // http://localhost:3001/?server=192.168.0.0.1:3000
+  let server = getQueryVariable("server");
+  socket = new WebSocket("ws://192.168.50.47:3000/ws");
+  socket.onopen = socket_onopen;
+  socket.onmessage = socket_onmessage;
+  socket.onclose = socket_onclose;
+  socket.onerror = socket_onerror;
+
+  get_all_clients_timer = setInterval(() => {
+    get_all_clients();
+  }, 3000);
+
+
 });
 
 onUnmounted(() => {
+  clear();
 });
-const socket = new WebSocket("ws://127.0.0.1:3000/ws");
 
+// 清理
+const clear = () => {
+  if (get_all_clients_timer) {
+    clearInterval(get_all_clients_timer);
+  }
+};
 
-function getQueryVariable(variable:string)
-{
-       var query = window.location.search.substring(1);
-       var vars = query.split("&");
-       for (var i=0;i<vars.length;i++) {
-               var pair = vars[i].split("=");
-               if(pair[0] == variable){return pair[1];}
-       }
-       return(false);
+function getQueryVariable(variable: string) {
+  var query = window.location.search.substring(1);
+  var vars = query.split("&");
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split("=");
+    if (pair[0] == variable) { return pair[1]; }
+  }
+  return (false);
 }
 
 
-
-socket.onopen = function(e) {
+const socket_onopen = function (event: any) {
   console.log("[open] Connection established");
   console.log("Sending to server");
   socket.send("Sending to server");
   socket.send("start_connection");
 };
 
-socket.onmessage = function(event) {
-  console.log(`[message] Data received from server: ${event.data}`);
-  let server = getQueryVariable("server")
-  console.log(server);
+// 收到消息, 只接收 ClientFunc 类型的数据
+const socket_onmessage = function (event: any) {
+  // console.log(`[message] Data received from server: ${event.data}`);
+  let temp_data = JSON.parse(event.data);
+  for (let i of temp_data) {
+    let j = JSON.parse(i);
+    data.clients.set(j.id, j);
+  }
 
+  // for (let i of temp_data) {
+  //   data.clients.set(i.id, i);
+  // }
+
+
+  //   let client_data = eval("(" + event.data + ")");
+  //  if (event.data == "get_all_client") {
+  //    console.log(event.data)
+
+  //   } else if (client_data.func_name == "start_app") {
+
+  //   } else {
+  //   }
 };
 
-socket.onclose = function(event) {
+
+
+const socket_onclose = function (event: any) {
   if (event.wasClean) {
     console.log(`[close] Connection closed, code=${event.code} reason=${event.reason}`);
   } else {
@@ -49,22 +83,327 @@ socket.onclose = function(event) {
   }
 };
 
-socket.onerror = function(error) {
+const socket_onerror = function (error: any) {
   console.log(error)
 };
 
-const sayhello = function() {
+const sayhello = function () {
   socket.send('hello');
 };
 
+const get_all_clients = () => {
 
+  let data: ClientFunc = {
+    func_name: "get_all_clients",
+    data: "",
+  };
+  let data_str = JSON.stringify(data);
+  console.log(data_str);
+  socket.send(data_str);
+
+};
+
+
+const call_option = function (index: number) {
+  console.log("call index = " + index)
+  data.current_client_id = index;
+};
+
+
+// 启动app
+const start_app = (app_path: string, start: boolean) => {
+
+};
+
+// ======== data start ========
+
+class ClientOperation {
+  name: string;
+  dscrpt: string;
+  // 构造函数
+  constructor(name: string, dscrpt: string) {
+    this.name = name
+    this.dscrpt = dscrpt
+  }
+}
+
+class ClientApp {
+  name: string;
+  folder: string; // 文件夹名称
+  dscrpt: string;
+  icon: string;
+  state: boolean;
+  // 构造函数
+  constructor(name: string, folder: string, dscrpt: string, icon: string, state: boolean) {
+    this.name = name;
+    this.folder = folder;
+    this.dscrpt = dscrpt;
+    this.icon = icon;
+    this.state = state;
+
+  }
+}
+
+
+class ClientData {
+  id: number;
+  name: string;
+  ip: string;
+  b_admin: boolean;
+  client_op: ClientOperation[];
+  apps: ClientApp[];
+
+  // 构造函数
+  constructor(
+    id: number,
+    name: string,
+    ip: string,
+    b_admin: boolean,
+    client_op: ClientOperation[],
+    apps: ClientApp[]
+  ) {
+    this.id = id;
+    this.name = name;
+    this.ip = ip;
+    this.b_admin = b_admin;
+    this.client_op = client_op;
+    this.apps = apps;
+  }
+}
+
+class ClientStateData {
+  name: string;
+  data: string;
+
+  // 构造函数
+  constructor(
+    name: string,
+    data: string
+  ) {
+    this.name = name;
+    this.data = data;
+
+  }
+}
+
+class ClientUpdateData {
+  states: ClientStateData[];
+  apps: ClientStateData[];
+
+  // 构造函数
+  constructor(
+    states: ClientStateData[],
+    apps: ClientStateData[]
+  ) {
+    this.states = states;
+    this.apps = apps;
+  }
+}
+
+class ClientFunc {
+  func_name: String;
+  data: String;
+  // 构造函数
+  constructor(func_name: string, data: string) {
+    this.func_name = func_name
+    this.data = data
+  }
+}
+
+var update_client_timer: any;
+//  页面中绑定的数据
+let client_states: ClientStateData[] = [];
+const data = reactive({
+  clients: new Map(),
+  current_client_id: -1,
+  menu_activeIndex: 1,
+  client_states: client_states,
+
+});
+
+// ======== data end ========
 
 </script>
 
 <template>
-<el-button type="primary" @click="sayhello" >Send hello  </el-button>
+  <el-container class="main-container" style="height: 580px">
+    <el-header class="main-header">
+
+
+      <div class="title">
+        <p class="app-name"> Espect 应用管理系统</p>
+        <p class="app-version">v1.0.0</p>
+      </div>
+
+      <el-icon class="app-setting" @click="">
+        <Setting />
+      </el-icon>
+
+    </el-header>
+
+    <el-container>
+      <el-aside>
+        <el-scrollbar>
+          <el-menu active-text-color="#ff8000" default-active="1">
+            <el-menu-item v-for="[key, value] in data.clients" :index="key" @click="call_option(key)">
+              <el-icon>
+                <Platform />
+              </el-icon>设备 {{
+              value.id }}
+            </el-menu-item>
+          </el-menu>
+        </el-scrollbar>
+      </el-aside>
+
+      <el-main class="client-content">
+
+        <!-- 内部容器 main-->
+        <el-scrollbar>
+          <div v-if="data.clients.get(data.current_client_id)">
+            <div class="client-info">
+
+              <p>计算机名称: {{data.clients.get(data.current_client_id).name}}</p>
+              <p>IP地址: {{data.clients.get(data.current_client_id).ip}}</p>
+
+            </div>
+
+            <div class="client-state">
+
+              <div class="client-state-item" v-for="item in data.client_states"> 状态 <el-icon>
+                  <Opportunity />
+                </el-icon>
+              </div>
+
+            </div>
+
+            <div class="client-option">
+
+              <el-button v-for="item in data.clients.get(data.current_client_id).client_op" type="primary" plain>
+                {{item.name}}</el-button>
+
+            </div>
+
+            <div class="client-apps">
+
+              <el-card class="client-apps-item" v-for="(item, index) in data.clients.get(data.current_client_id).apps"
+                body-style="padding:15px">
+                <img src="./assets/vue.svg" class="image" />
+                <div class="apps-item-body">
+                  <div class="apps-item-name">{{item.name}}</div>
+                  <el-button v-if="item.state" type="danger" @click="start_app(item.name, false)">关闭</el-button>
+
+                  <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/' +item.name, true)">
+                    启动</el-button>
+
+                </div>
+              </el-card>
+
+            </div>
+
+          </div>
+
+        </el-scrollbar>
+
+      </el-main>
+
+    </el-container>
+  </el-container>
 </template>
 
-<style scoped>
 
+
+<style lang="scss" scoped>
+.main-container {
+  .el-aside {
+    width: 200px;
+    background-color: #e7e7e7;
+  }
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #005989;
+  color: #fff;
+
+  .title {
+    display: flex;
+    align-items: baseline;
+
+    .app-name {
+      font-size: 20px;
+    }
+
+    .app-version {
+      padding-left: 10px;
+      font-size: 10px;
+    }
+  }
+
+  .app-setting {
+    font-size: 25px;
+  }
+}
+
+.el-aside {
+  .el-menu-item {
+    background-color: #e7e7e7;
+
+    &:hover {
+      background-color: #ffffff;
+    }
+
+  }
+}
+
+.client-content {
+
+  .client-info {
+    font-size: 12px;
+  }
+
+  .client-state {
+    display: flex;
+    margin-top: 20px;
+
+    .client-state-item {
+      width: 360px;
+    }
+
+    .el-icon {
+      color: #00ff00;
+    }
+  }
+
+  .client-option {
+    display: flex;
+    margin-top: 20px;
+  }
+
+  .client-apps {
+    display: flex;
+    flex-wrap: wrap;
+
+
+    .client-apps-item {
+      width: 260px;
+      margin-top: 20px;
+      margin-right: 20px;
+    }
+
+    .apps-item-body {
+      margin-top: 20px;
+
+    }
+
+    .apps-item-name {
+      margin-bottom: 5px;
+
+    }
+
+
+  }
+
+}
 </style>
