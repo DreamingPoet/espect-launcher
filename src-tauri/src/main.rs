@@ -11,18 +11,6 @@ use std::{
     time::Duration,
 };
 
-use futures::{
-    stream::{SplitSink, StreamExt},
-    SinkExt,
-};
-use tauri::{App, AppHandle, Manager};
-use tokio::{
-    sync::{
-        mpsc::{self, Receiver, Sender},
-        oneshot,
-    },
-    time::sleep,
-};
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -33,15 +21,27 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
+use futures::{
+    stream::{SplitSink, StreamExt},
+    SinkExt,
+};
 use std::{net::SocketAddr, path::PathBuf};
+use tauri::{App, AppHandle, Manager};
+use tokio::{
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        oneshot,
+    },
+    time::sleep,
+};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::client_data::ClientData;
 use crate::client_data::ClientFunc;
+use crate::client_data::{ClientData, StartApp};
 
 //  对共享数据（ClientMap）的所有的操作
 enum DataOperation {
@@ -61,13 +61,12 @@ enum DataOperation {
     },
     AddClientInfo {
         key: usize,
-        info:String,
+        info: String,
     },
     // 客户端（一般是移动端），请求所有客户端信息的时候，直接返回给它
     RetuenAllClientInfo {
         key: usize,
-    }
-    
+    },
 }
 
 // 对客户端操作的响应
@@ -91,15 +90,6 @@ async fn main() {
             tokio::spawn(handle_data_channel(rx));
             // tokio::spawn(printclients(tx2));
             tokio::spawn(start_axum(tx, app_launcher));
-
-            //     tauri::async_runtime::spawn(async move {
-            //         loop {
-            //             sleep(Duration::from_millis(1000)).await;
-            //             // println!("looping ...");
-            //             app_launcher.emit_all("keep-alive", "123").unwrap();
-            //         }
-            //     });
-
             Ok(())
         })
         .manage(tx3)
@@ -126,7 +116,16 @@ async fn start_app(
     app: String,
     tx: tauri::State<'_, Sender<DataOperation>>,
 ) -> Result<CustomResponse, String> {
-    let client_func:ClientFunc;
+    start_app_common(id, start, app, tx.inner().clone()).await
+}
+
+async fn start_app_common(
+    id: i32,
+    start: bool,
+    app: String,
+    tx: Sender<DataOperation>,
+) -> Result<CustomResponse, String> {
+    let client_func: ClientFunc;
     if start {
         client_func = ClientFunc {
             func_name: "start_app".to_string(),
@@ -157,11 +156,24 @@ async fn start_app(
 
 // 去客户端请求需要更新的数据
 #[tauri::command]
-async fn update_client(id: i32, tx: tauri::State<'_, Sender<DataOperation>>) -> Result<String, String> {
+async fn update_client(
+    id: i32,
+    clientid: i32,
+    tx: tauri::State<'_, Sender<DataOperation>>,
+) -> Result<String, String> {
+    update_client_common(id, clientid, tx.inner().clone()).await
+}
 
+// clientid (-1 表示是 服务器请求的，其他编号指的是，移动端的请求，谁请求，就转发给谁)
+async fn update_client_common(
+    id: i32,
+    clientid: i32,
+    tx: Sender<DataOperation>,
+) -> Result<String, String> {
+    println!("call update_client_common 1, clientid {}", clientid);
     let client_func = ClientFunc {
         func_name: "update_client".to_string(),
-        data: "".to_string(),
+        data: clientid.to_string(),
     };
     let client_func = serde_json::to_string(&client_func).unwrap();
 
@@ -169,28 +181,27 @@ async fn update_client(id: i32, tx: tauri::State<'_, Sender<DataOperation>>) -> 
         key: id as usize,
         msg: client_func,
     };
-
+    println!("call update_client_common 2, clientid {}", clientid);
     if tx.send(op).await.is_err() {
         println!("get data failed!");
         Err("".into())
     } else {
         Ok("".to_string())
     }
-
 }
 
 // 处理数据
 async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
     let mut data: ClientMap = HashMap::default();
-    let mut client_info:HashMap<usize, String> = HashMap::default();
+    let mut client_info: HashMap<usize, String> = HashMap::default();
     println!("into data handle");
     loop {
         if let Some(op) = rx.recv().await {
             match op {
-                DataOperation::Send { key, msg} => {
+                DataOperation::Send { key, msg } => {
                     // let sender = data.get_mut(&key);
                     // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
-                    println!("send data to client! ");
+                    println!("send data to client! {}", &msg);
                     if let Some(sender) = data.get_mut(&key) {
                         if sender.send(Message::Text(msg)).await.is_err() {
                             println!("send data failed!");
@@ -213,32 +224,36 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                     client_info.remove(&key);
                 }
 
-                DataOperation::AddClientInfo { key , info } => {
+                DataOperation::AddClientInfo { key, info } => {
                     client_info.insert(key, info);
                 }
 
-                DataOperation::RetuenAllClientInfo{ key } => {
-                    
+                DataOperation::RetuenAllClientInfo { key } => {
                     let mut res: HashSet<String> = HashSet::default();
                     for i in client_info.iter() {
                         res.insert(i.1.to_string());
                     }
-                    if let Ok(res_string) =  serde_json::to_string_pretty(&res) {
-
+                    if let Ok(res_string) = serde_json::to_string_pretty(&res) {
                         if let Some(sender) = data.get_mut(&key) {
-                            println!("send data to client = {}", &res_string);
-                            if sender.send(Message::Text(res_string)).await.is_err() {
+
+
+                            let func = ClientFunc {
+                                func_name: "on_get_all_clients".to_string(),
+                                data: res_string,
+                            };
+                        
+                            let fun_str = serde_json::to_string_pretty(&func).unwrap();
+                            
+                            println!("RetuenAllClientInfo send data to client = {}", &fun_str);
+                            if sender.send(Message::Text(fun_str)).await.is_err() {
                                 println!("send data failed!");
                                 // return;
                             }
                         }
-
-                    }else {
+                    } else {
                         println!("serde_json failed!");
                     }
-
                 }
-                
             }
         } else {
             println!("recv failed!");
@@ -377,32 +392,68 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                                 "on_get_client_data" => {
                                     // 解成Json , 设置 id 再转回 string
                                     let mut client_data: ClientData =
-                                    serde_json::from_str(&client_func.data).unwrap();
+                                        serde_json::from_str(&client_func.data).unwrap();
                                     client_data.id = user_id as i32;
                                     // println!("user_id = {}", client_data.ip);
                                     // let client_func: ClientFunc = serde_json::from_str(&t).unwrap();
                                     let client_str =
-                                    serde_json::to_string_pretty(&client_data).unwrap();
+                                        serde_json::to_string_pretty(&client_data).unwrap();
                                     app_handle
-                                    .emit_all("on_get_client_data", &client_str)
-                                    .unwrap();
+                                        .emit_all("on_get_client_data", &client_str)
+                                        .unwrap();
 
                                     // 保存客户端信息
-                                    let op = DataOperation::AddClientInfo { key: user_id, info: client_str};
-                                    let _ =  tx.send(op).await;
+                                    let op = DataOperation::AddClientInfo {
+                                        key: user_id,
+                                        info: client_str,
+                                    };
+                                    let _ = tx.send(op).await;
                                 }
                                 // 当收到来自客户端的更新信息
                                 // 同时转发到移动端
                                 "on_update_client" => {
-                                    app_handle
-                                    .emit_all("on_update_client", &client_func.data)
-                                    .unwrap();
+                                    // 解成Json , 获取 id 再 决定需要转发给谁
+                                    let update_client_data: client_data::ClientUpdateData =
+                                        serde_json::from_str(&client_func.data).unwrap();
+
+                                    let caller_id = update_client_data.caller_id;
+                                    if caller_id < 0 {
+                                        app_handle
+                                            .emit_all("on_update_client", &client_func.data)
+                                            .unwrap();
+                                    } else {
+                                        // 发送到请求客户端
+                                        let op = DataOperation::Send { key: caller_id as usize, msg: t };
+                                        let _ = tx.send(op).await;
+                                    }
                                 }
                                 // 移动端定时获取所有的客户端的基本信息
                                 "get_all_clients" => {
                                     let op = DataOperation::RetuenAllClientInfo { key: user_id };
-                                    let _ =  tx.send(op).await;
+                                    let _ = tx.send(op).await;
                                 }
+                                // 移动端点击启动app
+                                "start_app" => {
+                                    let start_app_data: StartApp =
+                                        serde_json::from_str(&client_func.data).unwrap();
+                                    let _ = start_app_common(
+                                        start_app_data.id,
+                                        start_app_data.start,
+                                        start_app_data.app,
+                                        tx.clone(),
+                                    )
+                                    .await;
+                                }
+                                // 移动端请求客户端信息
+                                "update_client" => {
+                                    println!("call update_client 3, {}", &client_func.data);
+                                    let clientid: client_data::UpdateClient = serde_json::from_str(&client_func.data).unwrap();
+                                    println!("call update_client 4, {}", &clientid.id);
+                                    // let clientid: i32 = client_func.data.parse::<i32>().unwrap();
+                                    let _  = update_client_common(clientid.id, user_id as i32, tx.clone()).await;
+                                }
+
+                                // StartApp
                                 _ => {}
                             }
                         } else {

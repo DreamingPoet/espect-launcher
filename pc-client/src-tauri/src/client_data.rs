@@ -42,6 +42,8 @@ pub struct ClientStateData {
 
 #[derive(Serialize, Deserialize)]
 pub struct ClientUpdateData {
+    //  谁请求就回复给谁
+    caller_id:i32,
     states: Vec<ClientStateData>,
     apps: Vec<ClientStateData>,
 }
@@ -123,10 +125,11 @@ fn test_get_local_apps() {
     println!("sys info {:?}", s.networks());
 }
 // 获取要更新的状态数据
-pub(crate) fn get_update_data(local_apps: &Vec<ClientApp>) -> String {
+pub(crate) fn get_update_data(local_apps: &Vec<ClientApp>, caller_id: i32) -> String {
     let data = ClientUpdateData{
         states: get_update_states(),
         apps: get_update_apps(local_apps),
+        caller_id:caller_id,
     };
     serde_json::to_string_pretty(&data).unwrap()
 }

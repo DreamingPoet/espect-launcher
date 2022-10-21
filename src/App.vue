@@ -29,7 +29,7 @@ listen("remove_client_data", function (client_data: Event<any>) {
 
 // 接收来自客户端的更新信息
 listen("on_update_client", function (client_data: Event<any>) {
-  let update_data: ClientUpdateData = eval("(" + client_data.payload + ")");
+  let update_data: ClientUpdateData = JSON.parse(client_data.payload);
   data.client_states = update_data.states;
   // console.log(data.clients.get(data.current_client_id).apps)
   for (let i of update_data.apps) {
@@ -125,14 +125,18 @@ class ClientStateData {
 }
 
 class ClientUpdateData {
+  //  谁请求就回复给谁
+  caller_id:Number;
   states: ClientStateData[];
   apps: ClientStateData[];
 
   // 构造函数
   constructor(
+    caller_id:Number,
     states: ClientStateData[],
     apps: ClientStateData[]
   ) {
+    this.caller_id = caller_id;
     this.states = states;
     this.apps = apps;
   }
@@ -170,9 +174,16 @@ const call_option = function (index: number) {
 };
 
 // 启动app
-const start_app = (app_path: string, start: boolean) => {
+const start_app = (app_folder:string, app_name: string, start: boolean) => {
+  let app_path = app_folder + app_name;
   if (data.clients.get(data.current_client_id) != undefined) {
     invoke("start_app", { id: data.clients.get(data.current_client_id).id, start: start, app: app_path });
+  }
+
+  for (let i of data.clients.get(data.current_client_id).apps) {
+      if (i.name == app_name) {
+        i.running = !start;
+      }
   }
 };
 
@@ -276,7 +287,8 @@ onMounted(() => {
   //     data: "true",
   //   }
   // ];
-
+  
+  update_client();
   update_client_timer = setInterval(() => {
     update_client();
   }, 2000);
@@ -284,10 +296,10 @@ onMounted(() => {
 
 });
 
-// 更新客户端信息
+// 更新客户端信息(-1 表示是 服务器请求的，其他编号指的是，移动端的请求，谁请求，就转发给谁)
 const update_client = () => {
   if (data.current_client_id < 0) return;
-  invoke("update_client", { id: data.current_client_id });
+  invoke("update_client", { id: data.current_client_id, clientid:-1 });
 };
 
 
@@ -363,9 +375,9 @@ onUnmounted(() => {
                 <img src="./assets/vue.svg" class="image" />
                 <div class="apps-item-body">
                   <div class="apps-item-name">{{item.name}}</div>
-                  <el-button v-if="item.state" type="danger" @click="start_app(item.name, false)">关闭</el-button>
+                  <el-button v-if="item.state" type="danger" @click="start_app('', item.name, false)">关闭</el-button>
 
-                  <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/' +item.name, true)">
+                  <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/', item.name, true)">
                     启动</el-button>
 
                 </div>

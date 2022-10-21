@@ -96,26 +96,21 @@ const close = () => {
 <template>
 
   <div data-tauri-drag-region class="titlebar">
-    <img src="/Square30x30Logo.png" />
-    <div class="titlebar-text" id="titlebar-text">
-      espect-launcher-client
-    </div>
-    
-<div class="buttons" >
+    <div class="buttons">
 
-    <div @click="minimize()" class="titlebar-button" id="titlebar-minimize">
-      <el-icon>
-        <SemiSelect />
-      </el-icon>
+      <div @click="minimize()" class="titlebar-button" id="titlebar-minimize">
+        <el-icon>
+          <SemiSelect />
+        </el-icon>
+
+      </div>
+      <div @click="close()" class="titlebar-button-close" id="titlebar-close">
+        <el-icon>
+          <CloseBold />
+        </el-icon>
+      </div>
 
     </div>
-    <div @click="close()" class="titlebar-button-close" id="titlebar-close">
-      <el-icon>
-        <CloseBold />
-      </el-icon>
-    </div>
-
-  </div>
 
   </div>
 
@@ -134,7 +129,7 @@ const close = () => {
     </div>
 
     <div style="text-align:center; margin-top: 30px;">
-      <el-button type="primary" @click="open_app_folder" plain :icon="FolderOpened" >打开目录</el-button>
+      <el-button type="primary" @click="open_app_folder" plain :icon="FolderOpened">打开目录</el-button>
     </div>
 
   </div>
@@ -146,7 +141,7 @@ const close = () => {
   background: #eeeeee;
   user-select: none;
   display: flex;
-  /* justify-content: flex-end; */
+  justify-content: flex-end;
   position: fixed;
   top: 0;
   left: 0;
@@ -156,14 +151,13 @@ const close = () => {
 .buttons {
 
   justify-content: right;
-  background: #ff0404;
 
 }
 
 .titlebar-text {
   font-size: 15px;
   text-align: center;
- vertical-align: middle;
+  vertical-align: middle;
   justify-content: left;
   margin-left: 5px;
 

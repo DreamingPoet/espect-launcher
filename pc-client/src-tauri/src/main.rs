@@ -198,10 +198,10 @@ fn get_local_data() -> String {
     serde_json::to_string_pretty(&func).unwrap()
 }
 
-fn get_update_data(local_apps: &Vec<ClientApp>) -> String {
+fn get_update_data(local_apps: &Vec<ClientApp>, caller_id: i32) -> String {
     let func = ClientFunc {
         func_name: "on_update_client".to_string(),
-        data: client_data::get_update_data(local_apps),
+        data: client_data::get_update_data(local_apps, caller_id),
     };
 
     serde_json::to_string_pretty(&func).unwrap()
@@ -282,9 +282,9 @@ async fn handle_websocket(tx: Sender<DataOperation>, local_apps: Vec<ClientApp>)
                                         // 获取自己需要更新的数据
                                         "update_client" => {
                                             // 发生客户端数据到服器
-
+                                            let caller_id: i32 = client_func.data.parse::<i32>().unwrap();
                                             let op = DataOperation::Send {
-                                                msg: get_update_data(&local_apps),
+                                                msg: get_update_data(&local_apps, caller_id),
                                             };
                                             let _ = tx.send(op).await;
                                         }

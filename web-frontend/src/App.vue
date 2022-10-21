@@ -3,19 +3,26 @@ import { onMounted, onUnmounted, reactive } from 'vue'
 
 let socket: any;
 let get_all_clients_timer: any;
+let update_client_timer: any;
+//  页面中绑定的数据
+let client_states: ClientStateData[] = [];
+const data = reactive({
+  clients: new Map(),
+  current_client_id: -1,
+  menu_activeIndex: 1,
+  client_states: client_states,
+
+});
+
 
 onMounted(() => {
   // http://localhost:3001/?server=192.168.0.0.1:3000
   let server = getQueryVariable("server");
-  socket = new WebSocket("ws://192.168.50.47:3000/ws");
+  socket = new WebSocket("ws://192.168.0.25:3000/ws");
   socket.onopen = socket_onopen;
   socket.onmessage = socket_onmessage;
   socket.onclose = socket_onclose;
   socket.onerror = socket_onerror;
-
-  get_all_clients_timer = setInterval(() => {
-    get_all_clients();
-  }, 3000);
 
 
 });
@@ -29,6 +36,11 @@ const clear = () => {
   if (get_all_clients_timer) {
     clearInterval(get_all_clients_timer);
   }
+
+  if (update_client_timer) {
+    clearInterval(update_client_timer);
+  }
+
 };
 
 function getQueryVariable(variable: string) {
@@ -44,33 +56,56 @@ function getQueryVariable(variable: string) {
 
 const socket_onopen = function (event: any) {
   console.log("[open] Connection established");
-  console.log("Sending to server");
-  socket.send("Sending to server");
   socket.send("start_connection");
+
+  get_all_clients();
+  get_all_clients_timer = setInterval(() => {
+    get_all_clients();
+  }, 3000);
+
+  update_client();
+  update_client_timer = setInterval(() => {
+    update_client();
+  }, 2000);
+
+
 };
 
 // 收到消息, 只接收 ClientFunc 类型的数据
 const socket_onmessage = function (event: any) {
-  // console.log(`[message] Data received from server: ${event.data}`);
-  let temp_data = JSON.parse(event.data);
-  for (let i of temp_data) {
-    let j = JSON.parse(i);
-    data.clients.set(j.id, j);
+  console.log(`[message] Data received from server: ${event.data}`);
+  let func_data: ClientFunc = JSON.parse(event.data); // eval("(" + event.data + ")");
+  if (func_data.func_name == "on_get_all_clients") {
+
+    let temp_data = JSON.parse(func_data.data.toString());
+    for (let i of temp_data) {
+      let j = JSON.parse(i);
+      data.clients.set(j.id, j);
+    }
+
+  } else if (func_data.func_name == "on_update_client") {
+
+    let update_data: ClientUpdateData = JSON.parse(func_data.data.toString());
+    data.client_states = update_data.states;
+    // console.log(data.clients.get(data.current_client_id).apps)
+    for (let i of update_data.apps) {
+      if (i.data == "true") {
+        for (let j of data.clients.get(data.current_client_id).apps) {
+          if (j.name == i.name) {
+            console.log(j.name + "set true")
+            j.state = true;
+          }
+        }
+      } else {
+        for (let j of data.clients.get(data.current_client_id).apps) {
+          if (j.name == i.name) {
+            console.log(j.name + "set false")
+            j.state = false;
+          }
+        }
+      }
+    }
   }
-
-  // for (let i of temp_data) {
-  //   data.clients.set(i.id, i);
-  // }
-
-
-  //   let client_data = eval("(" + event.data + ")");
-  //  if (event.data == "get_all_client") {
-  //    console.log(event.data)
-
-  //   } else if (client_data.func_name == "start_app") {
-
-  //   } else {
-  //   }
 };
 
 
@@ -81,6 +116,8 @@ const socket_onclose = function (event: any) {
   } else {
     console.log('[close] Connection died');
   }
+
+  clear();
 };
 
 const socket_onerror = function (error: any) {
@@ -103,6 +140,21 @@ const get_all_clients = () => {
 
 };
 
+// 更新客户端信息
+const update_client = () => {
+  if (data.current_client_id < 0) return;
+
+  let update_client: UpdateClient = {
+    id: data.clients.get(data.current_client_id).id,
+  }
+
+  let func: ClientFunc = {
+    func_name: "update_client",
+    data: JSON.stringify(update_client),
+  };
+  let func_str = JSON.stringify(func);
+  socket.send(func_str);
+};
 
 const call_option = function (index: number) {
   console.log("call index = " + index)
@@ -111,8 +163,26 @@ const call_option = function (index: number) {
 
 
 // 启动app
-const start_app = (app_path: string, start: boolean) => {
+const start_app = (app_folder:string, app_name: string, start: boolean) => {
+  let app_path = app_folder + app_name;
+  let start_app_str: StartApp = {
+    id: data.clients.get(data.current_client_id).id,
+    start: start,
+    app: app_path
+  }
+  let func: ClientFunc = {
+    func_name: "start_app",
+    data: JSON.stringify(start_app_str),
+  };
+  let func_str = JSON.stringify(func);
+  socket.send(func_str);
 
+
+  for (let i of data.clients.get(data.current_client_id).apps) {
+      if (i.name == app_name) {
+        i.running = !start;
+      }
+  }
 };
 
 // ======== data start ========
@@ -210,16 +280,28 @@ class ClientFunc {
   }
 }
 
-var update_client_timer: any;
-//  页面中绑定的数据
-let client_states: ClientStateData[] = [];
-const data = reactive({
-  clients: new Map(),
-  current_client_id: -1,
-  menu_activeIndex: 1,
-  client_states: client_states,
+class StartApp {
+  id: Number;
+  start: boolean;
+  app: string;
+  // 构造函数
+  constructor(id: Number, start: boolean, app: string) {
+    this.id = id;
+    this.start = start;
+    this.app = app;
+  }
+}
 
-});
+class UpdateClient {
+  id: Number;
+  // 构造函数
+  constructor(id: Number) {
+    this.id = id;
+  }
+}
+
+
+
 
 // ======== data end ========
 
@@ -246,10 +328,7 @@ const data = reactive({
         <el-scrollbar>
           <el-menu active-text-color="#ff8000" default-active="1">
             <el-menu-item v-for="[key, value] in data.clients" :index="key" @click="call_option(key)">
-              <el-icon>
-                <Platform />
-              </el-icon>设备 {{
-              value.id }}
+              设备 {{ value.id }}
             </el-menu-item>
           </el-menu>
         </el-scrollbar>
@@ -290,9 +369,9 @@ const data = reactive({
                 <img src="./assets/vue.svg" class="image" />
                 <div class="apps-item-body">
                   <div class="apps-item-name">{{item.name}}</div>
-                  <el-button v-if="item.state" type="danger" @click="start_app(item.name, false)">关闭</el-button>
+                  <el-button v-if="item.state" type="danger" @click="start_app('', item.name, false)">关闭</el-button>
 
-                  <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/' +item.name, true)">
+                  <el-button v-if="!item.state" type="primary" @click="start_app(item.folder + '/', item.name, true)">
                     启动</el-button>
 
                 </div>
@@ -315,7 +394,7 @@ const data = reactive({
 <style lang="scss" scoped>
 .main-container {
   .el-aside {
-    width: 200px;
+    width: 100px;
     background-color: #e7e7e7;
   }
 }
@@ -368,7 +447,7 @@ const data = reactive({
     margin-top: 20px;
 
     .client-state-item {
-      width: 360px;
+      width: 160px;
     }
 
     .el-icon {
@@ -378,6 +457,7 @@ const data = reactive({
 
   .client-option {
     display: flex;
+    flex-wrap: wrap;
     margin-top: 20px;
   }
 
@@ -387,7 +467,7 @@ const data = reactive({
 
 
     .client-apps-item {
-      width: 260px;
+      width: 160px;
       margin-top: 20px;
       margin-right: 20px;
     }
@@ -399,6 +479,7 @@ const data = reactive({
 
     .apps-item-name {
       margin-bottom: 5px;
+      font-size: 12px;
 
     }
 
