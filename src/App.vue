@@ -5,6 +5,7 @@ import { Menu, Message, Setting, Platform, Opportunity } from '@element-plus/ico
 
 import { invoke } from '@tauri-apps/api'
 import { listen, Event } from "@tauri-apps/api/event"
+import QrcodeVue from 'qrcode.vue'
 
 
 // 监听来自后端的事件
@@ -126,13 +127,13 @@ class ClientStateData {
 
 class ClientUpdateData {
   //  谁请求就回复给谁
-  caller_id:Number;
+  caller_id: Number;
   states: ClientStateData[];
   apps: ClientStateData[];
 
   // 构造函数
   constructor(
-    caller_id:Number,
+    caller_id: Number,
     states: ClientStateData[],
     apps: ClientStateData[]
   ) {
@@ -152,14 +153,17 @@ class ClientFunc {
   }
 }
 
-var update_client_timer:any;
-//  页面中绑定的数据
+var update_client_timer: any;
+//  ==================================================================页面中绑定的数据
 let client_states: ClientStateData[] = [];
+
+
 const data = reactive({
   clients: new Map(),
   current_client_id: -1,
   menu_activeIndex: 1,
   client_states: client_states,
+  qr_code:'http://127.0.0.1:3000',
 
 });
 
@@ -174,16 +178,16 @@ const call_option = function (index: number) {
 };
 
 // 启动app
-const start_app = (app_folder:string, app_name: string, start: boolean) => {
+const start_app = (app_folder: string, app_name: string, start: boolean) => {
   let app_path = app_folder + app_name;
   if (data.clients.get(data.current_client_id) != undefined) {
     invoke("start_app", { id: data.clients.get(data.current_client_id).id, start: start, app: app_path });
   }
 
   for (let i of data.clients.get(data.current_client_id).apps) {
-      if (i.name == app_name) {
-        i.running = !start;
-      }
+    if (i.name == app_name) {
+      i.running = !start;
+    }
   }
 };
 
@@ -231,41 +235,14 @@ const test_client = new Map([
     }
 
   ],
-  [2,
-    {
-      id: 2,
-      name: "MSFD-S123",
-      ip: "127.0.0.1",
-      b_admin: false,
-      client_op: [
-        {
-          name: "Steam VR",
-          dscrpt: "SDFDSFDS",
-        },
-        {
-          name: "Windows MR",
-          dscrpt: "SDFDSFDS",
-        }
-      ],
-      apps: [
-        {
-          name: "FilmingExperiment",
-          folder: "string", // 文件夹名称
-          dscrpt: "string",
-          icon: "",
-          state: true,
-        },
-        {
-          name: "PTPlatform",
-          folder: "string", // 文件夹名称
-          dscrpt: "string",
-          icon: "",
-          state: true,
-        },
-      ],
-    }
-
-  ]
+  [2, { id: 2, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [3, { id: 3, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [4, { id: 4, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [5, { id: 5, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [6, { id: 6, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [7, { id: 7, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [8, { id: 8, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
+  [9, { id: 9, name: "MSFD-S123", ip: "127.0.0.1", b_admin: false, client_op: [], apps: [], }],
 ]);
 
 
@@ -287,6 +264,8 @@ onMounted(() => {
   //     data: "true",
   //   }
   // ];
+
+  get_local_ip();
   
   update_client();
   update_client_timer = setInterval(() => {
@@ -296,10 +275,19 @@ onMounted(() => {
 
 });
 
+const get_local_ip = () =>{
+  invoke("get_local_ip", {}).then((e)=>{
+
+    data.qr_code = "http://" + e as string +":3000/home";
+
+  });
+  
+}
+
 // 更新客户端信息(-1 表示是 服务器请求的，其他编号指的是，移动端的请求，谁请求，就转发给谁)
 const update_client = () => {
   if (data.current_client_id < 0) return;
-  invoke("update_client", { id: data.current_client_id, clientid:-1 });
+  invoke("update_client", { id: data.current_client_id, clientid: -1 });
 };
 
 
@@ -321,15 +309,29 @@ onUnmounted(() => {
         <p class="app-version">v1.0.0</p>
       </div>
 
-      <el-icon class="app-setting" @click="">
-        <Setting />
-      </el-icon>
+
+      <el-dropdown>
+        <el-icon class="app-setting">
+          <Setting />
+        </el-icon>
+
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item>
+              <qrcode-vue :value="data.qr_code" size:300  ></qrcode-vue>
+              <!-- <img class="qr-code" :src="data.qr_code" /> -->
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+
+
 
     </el-header>
 
     <el-container>
       <el-aside>
-        <el-scrollbar>
+        <el-scrollbar class="qr-code">
           <el-menu active-text-color="#ff8000" default-active="1">
             <el-menu-item v-for="[key, value] in data.clients" :index="key" @click="call_option(key)">
               <el-icon>
@@ -371,7 +373,8 @@ onUnmounted(() => {
 
             <div class="client-apps">
 
-              <el-card class="client-apps-item" v-for="(item, index) in data.clients.get(data.current_client_id).apps" body-style="padding:15px">
+              <el-card class="client-apps-item" v-for="(item, index) in data.clients.get(data.current_client_id).apps"
+                body-style="padding:15px">
                 <img src="./assets/vue.svg" class="image" />
                 <div class="apps-item-body">
                   <div class="apps-item-name">{{item.name}}</div>
@@ -428,6 +431,7 @@ onUnmounted(() => {
 
   .app-setting {
     font-size: 25px;
+    color: #fff;
   }
 }
 
@@ -461,7 +465,7 @@ onUnmounted(() => {
     }
   }
 
-  .client-option{
+  .client-option {
     display: flex;
     margin-top: 20px;
   }
@@ -469,7 +473,7 @@ onUnmounted(() => {
   .client-apps {
     display: flex;
     flex-wrap: wrap;
- 
+
 
     .client-apps-item {
       width: 260px;
@@ -477,12 +481,12 @@ onUnmounted(() => {
       margin-right: 20px;
     }
 
-    .apps-item-body{
+    .apps-item-body {
       margin-top: 20px;
 
     }
 
-    .apps-item-name{
+    .apps-item-name {
       margin-bottom: 5px;
 
     }

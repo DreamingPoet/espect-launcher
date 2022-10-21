@@ -26,7 +26,8 @@ tower-http = { version = "0.3.0", features = ["fs", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures = "0.3"
-
+local_ipaddress = "0.1.3"
+rust-crypto = "0.2.36"
 
 [features]
 # by default Tauri runs in production mode

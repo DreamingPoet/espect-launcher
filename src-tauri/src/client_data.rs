@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -55,4 +57,10 @@ pub struct ClientUpdateData {
     pub caller_id: i32,
     states: Vec<ClientStateData>,
     apps: Vec<ClientStateData>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AllClientsData {
+    pub data_hash: String,
+    pub(crate) all_clients: HashSet<String>,
 }

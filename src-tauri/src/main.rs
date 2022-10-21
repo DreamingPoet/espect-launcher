@@ -5,6 +5,9 @@
 
 mod client_data;
 
+use crypto::md5::Md5;
+use crypto::digest::Digest;
+
 use std::{
     collections::{HashMap, HashSet},
     default,
@@ -40,7 +43,7 @@ use tower_http::{
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::client_data::ClientFunc;
+use crate::client_data::{ClientFunc, AllClientsData};
 use crate::client_data::{ClientData, StartApp};
 
 //  对共享数据（ClientMap）的所有的操作
@@ -66,6 +69,7 @@ enum DataOperation {
     // 客户端（一般是移动端），请求所有客户端信息的时候，直接返回给它
     RetuenAllClientInfo {
         key: usize,
+        data_hash: String,
     },
 }
 
@@ -93,7 +97,7 @@ async fn main() {
             Ok(())
         })
         .manage(tx3)
-        .invoke_handler(tauri::generate_handler![greet, start_app, update_client])
+        .invoke_handler(tauri::generate_handler![greet, start_app, update_client, get_local_ip])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -101,6 +105,15 @@ async fn main() {
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}!", name)
+}
+
+#[tauri::command]
+fn get_local_ip() -> String {
+    let mut ip = "".to_string();
+    if let Some(ip_) = local_ipaddress::get() {
+        ip = ip_;
+    }
+    ip 
 }
 
 #[derive(serde::Serialize)]
@@ -201,7 +214,7 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                 DataOperation::Send { key, msg } => {
                     // let sender = data.get_mut(&key);
                     // sender.unwrap().send(  Message::Text(String::from("Username already taken."))  );
-                    println!("send data to client! {}", &msg);
+                    // println!("send data to client! {}", &msg);
                     if let Some(sender) = data.get_mut(&key) {
                         if sender.send(Message::Text(msg)).await.is_err() {
                             println!("send data failed!");
@@ -228,28 +241,51 @@ async fn handle_data_channel(mut rx: Receiver<DataOperation>) {
                     client_info.insert(key, info);
                 }
 
-                DataOperation::RetuenAllClientInfo { key } => {
+                DataOperation::RetuenAllClientInfo { key , data_hash} => {
+                     
                     let mut res: HashSet<String> = HashSet::default();
                     for i in client_info.iter() {
                         res.insert(i.1.to_string());
                     }
+                    
                     if let Ok(res_string) = serde_json::to_string_pretty(&res) {
-                        if let Some(sender) = data.get_mut(&key) {
-
-
-                            let func = ClientFunc {
-                                func_name: "on_get_all_clients".to_string(),
-                                data: res_string,
-                            };
                         
-                            let fun_str = serde_json::to_string_pretty(&func).unwrap();
-                            
-                            println!("RetuenAllClientInfo send data to client = {}", &fun_str);
-                            if sender.send(Message::Text(fun_str)).await.is_err() {
-                                println!("send data failed!");
-                                // return;
+                        // 检查数据是否有变化
+
+                        // 对data进行取MD5
+                        let mut hasher = Md5::new();
+                        hasher.input_str(&res_string.to_owned());
+                        let current_data_hash = hasher.result_str();
+
+                        // 如果数据有变化
+                        if current_data_hash != data_hash {
+                            println!("data has changed {}", hasher.result_str());
+
+                            if let Some(sender) = data.get_mut(&key) {
+                                let all_clients_data = AllClientsData{
+                                    data_hash: current_data_hash,
+                                    all_clients: res };
+
+                            if let Ok(res_string) = serde_json::to_string_pretty(&all_clients_data) {
+
+                                let func = ClientFunc {
+                                    func_name: "on_get_all_clients".to_string(),
+                                    data: res_string,
+                                };
+                                let fun_str = serde_json::to_string_pretty(&func).unwrap();
+                                
+                                // println!("RetuenAllClientInfo send data to client = {}", &fun_str);
+                                if sender.send(Message::Text(fun_str)).await.is_err() {
+                                    println!("send data failed!");
+                                }
+
                             }
+                            }
+
+                        } else {
+                            println!("data has not changed");
                         }
+
                     } else {
                         println!("serde_json failed!");
                     }
@@ -429,7 +465,7 @@ async fn handle_socket(socket: WebSocket, tx: Sender<DataOperation>, app_handle:
                                 }
                                 // 移动端定时获取所有的客户端的基本信息
                                 "get_all_clients" => {
-                                    let op = DataOperation::RetuenAllClientInfo { key: user_id };
+                                    let op = DataOperation::RetuenAllClientInfo { key: user_id , data_hash:client_func.data };
                                     let _ = tx.send(op).await;
                                 }
                                 // 移动端点击启动app

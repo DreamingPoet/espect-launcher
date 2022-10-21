@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, reactive } from 'vue'
+import {Setting, Opportunity } from '@element-plus/icons-vue'
 
 let socket: any;
 let get_all_clients_timer: any;
 let update_client_timer: any;
+let all_clients_data_hash = "null";
 //  页面中绑定的数据
 let client_states: ClientStateData[] = [];
 const data = reactive({
@@ -17,8 +19,9 @@ const data = reactive({
 
 onMounted(() => {
   // http://localhost:3001/?server=192.168.0.0.1:3000
-  let server = getQueryVariable("server");
-  socket = new WebSocket("ws://192.168.0.25:3000/ws");
+  let server = "ws://"+ window.location.host +"/ws";
+  console.log("WebSocket server = " + server);
+  socket = new WebSocket(server);
   socket.onopen = socket_onopen;
   socket.onmessage = socket_onmessage;
   socket.onclose = socket_onclose;
@@ -58,9 +61,9 @@ const socket_onopen = function (event: any) {
   console.log("[open] Connection established");
   socket.send("start_connection");
 
-  get_all_clients();
+  get_all_clients(all_clients_data_hash);
   get_all_clients_timer = setInterval(() => {
-    get_all_clients();
+    get_all_clients(all_clients_data_hash);
   }, 3000);
 
   update_client();
@@ -76,10 +79,12 @@ const socket_onmessage = function (event: any) {
   console.log(`[message] Data received from server: ${event.data}`);
   let func_data: ClientFunc = JSON.parse(event.data); // eval("(" + event.data + ")");
   if (func_data.func_name == "on_get_all_clients") {
-
-    let temp_data = JSON.parse(func_data.data.toString());
-    for (let i of temp_data) {
-      let j = JSON.parse(i);
+    data.clients.clear();
+    let all_clients_data:AllClientsData = JSON.parse(func_data.data.toString()); // AllClientsData
+    // 保存上一次的hash
+    all_clients_data_hash = all_clients_data.data_hash;
+    for (let i of all_clients_data.all_clients) {
+      let j:ClientData = JSON.parse(i);
       data.clients.set(j.id, j);
     }
 
@@ -108,8 +113,6 @@ const socket_onmessage = function (event: any) {
   }
 };
 
-
-
 const socket_onclose = function (event: any) {
   if (event.wasClean) {
     console.log(`[close] Connection closed, code=${event.code} reason=${event.reason}`);
@@ -128,11 +131,11 @@ const sayhello = function () {
   socket.send('hello');
 };
 
-const get_all_clients = () => {
+const get_all_clients = (data_hash :string) => {
 
   let data: ClientFunc = {
     func_name: "get_all_clients",
-    data: "",
+    data: data_hash,
   };
   let data_str = JSON.stringify(data);
   console.log(data_str);
@@ -300,6 +303,17 @@ class UpdateClient {
   }
 }
 
+
+class AllClientsData {
+  data_hash:string;
+  all_clients:string[]; //json string of ClientData[]
+  // 构造函数
+  constructor(data_hash: string, all_clients:string[]) {
+    this.data_hash = data_hash;
+    this.all_clients = all_clients;
+  }
+
+}
 
 
 
