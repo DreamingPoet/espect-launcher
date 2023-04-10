@@ -27,3 +27,14 @@ npm install stylus stylus-loader style-loader --save-dev
 axum 处理静态资源
 
 https://www.cnblogs.com/yjmyzz/p/axum_tutorial_5_static_file.html
+
+
+
+Preview1
+
+![img](preview1.png)
+
+
+Preview2
+
+![img](preview2.png)

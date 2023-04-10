@@ -2,7 +2,7 @@
   <el-row>
     <el-col v-for="(o, index) in 2" :key="o" :span="8" :offset="index > 0 ? 2 : 0">
       <el-card :body-style="{ padding: '0px' }">
-        <img src="../../assets/vue.svg" class="image" />
+        <img src="../../assets/exe.png" class="image" />
         <div style="padding: 14px">
           <span>App</span>
           <div class="bottom">

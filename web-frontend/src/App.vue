@@ -360,7 +360,7 @@ class AllClientsData {
 
             </div>
 
-            <div class="client-state">
+            <!-- <div class="client-state">
 
               <div class="client-state-item" v-for="item in data.client_states"> 状态 <el-icon>
                   <Opportunity />
@@ -374,13 +374,13 @@ class AllClientsData {
               <el-button v-for="item in data.clients.get(data.current_client_id).client_op" type="primary" plain>
                 {{item.name}}</el-button>
 
-            </div>
+            </div> -->
 
             <div class="client-apps">
 
               <el-card class="client-apps-item" v-for="(item, index) in data.clients.get(data.current_client_id).apps"
                 body-style="padding:15px">
-                <img src="./assets/vue.svg" class="image" />
+                <img src="./assets/exe.png" class="image" />
                 <div class="apps-item-body">
                   <div class="apps-item-name">{{item.name}}</div>
                   <el-button v-if="item.state" type="danger" @click="start_app('', item.name, false)">关闭</el-button>
