@@ -38,3 +38,48 @@ Preview1
 Preview2
 
 ![img](preview2.png)
+
+
+项目环境:
+
+node 16.15.1 (建议用 nvm 管理 nodejs 版本)
+rustc 1.70.0 (90c541806 2023-05-31)
+
+项目初始化:
+项目由两个部分组成, 服务端 server, 客户端 pc-client
+服务端由一个 tcp server 和 一个 基于 axum 的web server, 以及一个 web socket server 组成
+tcp server, 用于监听来自客户端的连接
+web server, 用于移动设备通过web浏览器, 然后通过websocket和server 通信 (仅限局域网)
+
+web server 的前端页面部分由 web-frontend 提供 (一个 vue3 + ts 的前端项目)
+web 客户端通过 websocket 和 server 通信
+
+一, 编译 web-frontend
+
+``` bash
+cd web-frontend
+npm run build
+```
+会在项目目录下生成一个 dist 文件夹,提供 web server 所需的静态文件
+
+二, 编译服务端
+``` bash
+cd ..
+npm run tauri build
+```
+
+debug 模式启动
+``` bash
+npm run tauri dev
+```
+
+三, 编译 pc-client
+``` bash
+cd pc-client
+npm run tauri build
+```
+
+debug 模式启动
+``` bash
+npm run tauri dev
+```
