@@ -81,6 +81,12 @@ static NEXT_USERID: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUs
 
 type ClientMap = HashMap<usize, SplitSink<WebSocket, Message>>;
 
+#[derive(Clone, serde::Serialize)]
+struct Payload {
+  args: Vec<String>,
+  cwd: String,
+}
+
 #[tokio::main]
 async fn main() {
     // 创建一个访问和操作共享数据的通道
@@ -89,6 +95,11 @@ async fn main() {
     let tx3 = tx.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            println!("{}, {argv:?}, {cwd}", app.package_info().name);
+
+            app.emit_all("single-instance", Payload { args: argv, cwd }).unwrap();
+        }))
         .setup(|app| {
             let app_launcher = app.app_handle();
             tokio::spawn(handle_data_channel(rx));

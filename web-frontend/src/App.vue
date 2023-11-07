@@ -18,7 +18,7 @@ const data = reactive({
 
 
 onMounted(() => {
-  // http://localhost:3001/?server=192.168.0.0.1:3000
+  // http://localhost:3001/?server=192.168.0.1:3000
   let server = "ws://"+ window.location.host +"/ws";
   console.log("WebSocket server = " + server);
   socket = new WebSocket(server);
